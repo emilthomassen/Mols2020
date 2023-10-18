@@ -1,0 +1,980 @@
+---
+title: "Read Plots for certain genera"
+author: "Emil Ellegaard Thomassen"
+date: "`r Sys.Date()"
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+This script plots reads for certain genera
+
+```{r Setup R and load packages}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.height = 5.5,
+	message = FALSE,
+	warning = FALSE,
+	autodep = TRUE,
+	cache = TRUE,
+	cache.lazy = FALSE,
+	tidy = TRUE,
+	tidy.opts = list(width.cutoff = 80)
+)
+rm(list=ls())
+gc()
+Dir.Base <- here::here()
+
+
+
+# Installing packages as needed
+install.load.package <- function(x) {
+  if (!require(x, character.only = TRUE))
+    install.packages(x, repos='http://cran.us.r-project.org', dependencies = TRUE)
+  require(x, character.only = TRUE)
+}
+package_vec <- c("kableExtra", "tidyverse","png", "jpeg", "sp", "ncf","rgdal","MASS", "raster", "ggmap", "ggplot2", "BiodiversityR", "pheatmap", "knitr", "printr", "ade4", "vegan", "ROBITools", "ROBITaxonomy", "dplyr", "tidyr", "plotrix")
+sapply(package_vec, install.load.package)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, cache = TRUE, cache.lazy=FALSE, tidy.opts=list(width.cutoff=80),tidy=TRUE, fig.height=5.5)
+options(digits=4, width = 90)
+
+```
+
+Need to decide if we should plot read counts or frequencies? For now, I have corrected Agrostis and Rubus to frequencies, but the rest is still counts (and then we need the count data for input, so does not work right now)
+
+```{r Read plots for certain genera}
+
+#Loading libraries
+library(tidyverse)
+library(ROBITools)
+library(ROBITaxonomy)
+library(ggpubr)
+library(dplyr)
+library(ggplot2)
+library(ggsci)
+library(RColorBrewer)
+library(png)
+library(patchwork)
+
+#Set level order for plotting
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+#Load data
+df_raw <- readRDS("ITS/Local_analysis/output/RDS_files/df_for_plots_and_analysis_genera")
+dataset<-readRDS("ITS/Local_analysis/output/RDS_files/dataset_final")
+
+
+
+#Agrostis (Hvene) code: Agro
+df_agro<-df_raw[which(df_raw$genus=="Agrostis"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_agro<-merge(df_agro,meta, by.x="sample", by.y="Samples")
+
+Freq_agro<-Freq_agro[order(Freq_agro$month),]
+
+Agro_gal<-subset(Freq_agro, Freq_agro$source=="galloway")
+Agro_exm<-subset(Freq_agro, Freq_agro$source=="exmoor")
+
+img_agro<-readJPEG("ITS/Local_analysis/external_figures/agrostis.jpg", native=TRUE) #Include species examples?
+
+Diet_agro<-ggplot(Agro_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=Agro_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=Agro_gal,stat="identity", col="darkseagreen4") +
+  #stat_summary(data=Agro_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(data=Agro_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Agrostis") +
+  annotate("text", x=2.5, y=0.95, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=0.95, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=0.95, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_agro,1,2,0.6,0.78)
+
+Diet_agro
+
+#Alnus (El) code: alnu
+df_alnu<-df_raw[which(df_raw$genus=="Alnus"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_alnu<-merge(df_alnu,meta, by.x="sample", by.y="Samples")
+
+Freq_alnu<-Freq_alnu[order(Freq_alnu$month),]
+
+alnu_gal<-subset(Freq_alnu, Freq_alnu$source=="galloway")
+alnu_exm<-subset(Freq_alnu, Freq_alnu$source=="exmoor")
+
+img_alnu<-readJPEG("ITS/Local_analysis/external_figures/Alnus.jpg", native=TRUE) #Include species examples?
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+Diet_alnu<-ggplot(alnu_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  geom_point(stat="identity", col="dodgerblue3") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=alnu_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=alnu_gal,stat="identity", col="darkseagreen4", aes(x=factor(month, level=level_order), y=freq, group=1)) +
+  geom_smooth(data=alnu_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #stat_summary(data=alnu_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 0.12)) +
+  scale_y_continuous(breaks=c(0,0.01,0.02,0.03,0.04,0.05,0.06,0.07,0.08,0.09,0.10,0.11,0.12)) +
+  ggtitle("Alnus") +
+  annotate("text", x=2.5, y=0.12, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=0.12, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=0.12, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_alnu,1,2,0.09,0.11)
+
+Diet_alnu
+
+#Betula (Birk) code: betu
+df_betu<-df_raw[which(df_raw$genus=="Betula"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_betu<-merge(df_betu,meta, by.x="sample", by.y="Samples")
+
+Freq_betu<-Freq_betu[order(Freq_betu$month),]
+
+betu_gal<-subset(Freq_betu, Freq_betu$source=="galloway")
+betu_exm<-subset(Freq_betu, Freq_betu$source=="exmoor")
+
+img_betu<-readJPEG("ITS/Local_analysis/external_figures/Betula.jpg", native=TRUE) #Include species examples?
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+Diet_betu<-ggplot(betu_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=betu_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=betu_gal,stat="identity", col="darkseagreen4", aes(x=factor(month, level=level_order), y=freq, group=1)) +
+  #stat_summary(data=betu_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(data=betu_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 1.1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Betula") +
+  annotate("text", x=2.5, y=1.1, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=1.1, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=1.1, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_betu,1,2,0.7,1)
+
+Diet_betu
+
+#Calluna (Lyng) code: call
+df_call<-df_raw[which(df_raw$genus=="Calluna"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_call<-merge(df_call,meta, by.x="sample", by.y="Samples")
+
+Freq_call<-Freq_call[order(Freq_call$month),]
+
+call_gal<-subset(Freq_call, Freq_call$source=="galloway")
+call_exm<-subset(Freq_call, Freq_call$source=="exmoor")
+
+img_call<-readJPEG("ITS/Local_analysis/external_figures/Calluna.jpg", native=TRUE) #Include species examples?
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+Diet_call<-ggplot(call_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=call_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=call_gal,stat="identity", col="darkseagreen4", aes(x=factor(month, level=level_order), y=freq, group=1)) +
+  #stat_summary(data=call_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(data=call_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 1.1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Calluna") +
+  annotate("text", x=2.5, y=1.1, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=1.1, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=1.1, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_call,1,2,0.8,1)
+
+Diet_call
+
+#Carex (Star) code: care
+df_care<-df_raw[which(df_raw$genus=="Carex"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_care<-merge(df_care,meta, by.x="sample", by.y="Samples")
+
+Freq_care<-Freq_care[order(Freq_care$month),]
+
+care_gal<-subset(Freq_care, Freq_care$source=="galloway")
+care_exm<-subset(Freq_care, Freq_care$source=="exmoor")
+
+img_care<-readJPEG("ITS/Local_analysis/external_figures/Carex.jpg", native=TRUE) #Include species examples?
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+Diet_care<-ggplot(care_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=care_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=care_gal,stat="identity", col="darkseagreen4", aes(x=factor(month, level=level_order), y=freq, group=1)) +
+  #stat_summary(data=care_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(data=care_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 0.4)) +
+  scale_y_continuous(breaks=c(0,0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4)) +
+  ggtitle("Carex") +
+  annotate("text", x=2.5, y=0.4, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=0.4, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=0.4, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_care,1,2,0.27,0.35)
+
+Diet_care
+
+#Cytisus (Gyvel) code: cyti
+df_cyti<-df_raw[which(df_raw$genus=="Cytisus"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_cyti<-merge(df_cyti,meta, by.x="sample", by.y="Samples")
+
+Freq_cyti<-Freq_cyti[order(Freq_cyti$month),]
+
+cyti_gal<-subset(Freq_cyti, Freq_cyti$source=="galloway")
+cyti_exm<-subset(Freq_cyti, Freq_cyti$source=="exmoor")
+
+img_cyti<-readJPEG("ITS/Local_analysis/external_figures/Cytisus.jpg", native=TRUE) #Include species examples?
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+Diet_cyti<-ggplot(cyti_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=cyti_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=cyti_gal,stat="identity", col="darkseagreen4", aes(x=factor(month, level=level_order), y=freq, group=1)) +
+  #stat_summary(data=cyti_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(data=cyti_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 0.15)) +
+  scale_y_continuous(breaks=c(0,0.05,0.1,0.15)) +
+  ggtitle("Cytisus") +
+  annotate("text", x=2.5, y=0.15, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=0.15, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=0.15, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_cyti,1,2,0.1,0.118)
+
+Diet_cyti
+
+#Fagus (Bøg) code: fagu
+df_fagu<-df_raw[which(df_raw$genus=="Fagus"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_fagu<-merge(df_fagu,meta, by.x="sample", by.y="Samples")
+
+Freq_fagu<-Freq_fagu[order(Freq_fagu$month),]
+
+fagu_gal<-subset(Freq_fagu, Freq_fagu$source=="galloway")
+fagu_exm<-subset(Freq_fagu, Freq_fagu$source=="exmoor")
+
+img_fagu<-readJPEG("ITS/Local_analysis/external_figures/fagus.jpg", native=TRUE) #Include species examples?
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+Diet_fagu<-ggplot(fagu_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=fagu_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=fagu_gal,stat="identity", col="darkseagreen4", aes(x=factor(month, level=level_order), y=freq, group=1)) +
+  #stat_summary(data=fagu_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(data=fagu_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 1.1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Fagus") +
+  annotate("text", x=2.5, y=1.1, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=1.1, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=1.1, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_fagu,1,2,0.8,1)
+
+Diet_fagu
+
+#Galium (Snerre) code: gali
+df_gali<-df_raw[which(df_raw$genus=="Galium"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_gali<-merge(df_gali,meta, by.x="sample", by.y="Samples")
+
+Freq_gali<-Freq_gali[order(Freq_gali$month),]
+
+gali_gal<-subset(Freq_gali, Freq_gali$source=="galloway")
+gali_exm<-subset(Freq_gali, Freq_gali$source=="exmoor")
+
+img_gali<-readJPEG("ITS/Local_analysis/external_figures/Galium.jpg", native=TRUE) #Include species examples?
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+Diet_gali<-ggplot(gali_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=gali_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=gali_gal,stat="identity", col="darkseagreen4", aes(x=factor(month, level=level_order), y=freq, group=1)) +
+  #stat_summary(data=gali_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(data=gali_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 0.05)) +
+  scale_y_continuous(breaks=c(0,0.01,0.02,0.03,0.04,0.05)) +
+  ggtitle("Galium") +
+  annotate("text", x=2.5, y=0.05, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=0.05, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=0.05, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_gali,1,2,0.035,0.045)
+
+Diet_gali
+
+#Lotus (Kællingetand) code: lotu
+df_lotu<-df_raw[which(df_raw$genus=="Lotus"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_lotu<-merge(df_lotu,meta, by.x="sample", by.y="Samples")
+
+Freq_lotu<-Freq_lotu[order(Freq_lotu$month),]
+
+lotu_gal<-subset(Freq_lotu, Freq_lotu$source=="galloway")
+lotu_exm<-subset(Freq_lotu, Freq_lotu$source=="exmoor")
+
+img_lotu<-readJPEG("ITS/Local_analysis/external_figures/Lotus.jpg", native=TRUE) #Include species examples?
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+Diet_lotu<-ggplot(lotu_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=lotu_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=lotu_gal,stat="identity", col="darkseagreen4", aes(x=factor(month, level=level_order), y=freq, group=1)) +
+  geom_smooth(data=lotu_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #stat_summary(data=lotu_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 1.1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Lotus") +
+  annotate("text", x=2.5, y=1.1, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=1.1, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=1.1, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_lotu,1,2,0.8,1)
+
+Diet_lotu
+
+#Pinus (Skovfyr) code: pinu
+df_pinu<-df_raw[which(df_raw$genus=="Pinus"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_pinu<-merge(df_pinu,meta, by.x="sample", by.y="Samples")
+
+Freq_pinu<-Freq_pinu[order(Freq_pinu$month),]
+
+pinu_gal<-subset(Freq_pinu, Freq_pinu$source=="galloway")
+pinu_exm<-subset(Freq_pinu, Freq_pinu$source=="exmoor")
+
+img_pinu<-readJPEG("ITS/Local_analysis/external_figures/Pinus.jpg", native=TRUE) #Include species examples?
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+Diet_pinu<-ggplot(pinu_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=pinu_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=pinu_gal,stat="identity", col="darkseagreen4", aes(x=factor(month, level=level_order), y=freq, group=1)) +
+  geom_smooth(data=pinu_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #stat_summary(data=pinu_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 0.001)) +
+  scale_y_continuous(breaks=c(0,0.0001,0.0002,0.0003,0.0004,0.0005,0.0006,0.0007,0.0008,0.0009,0.001)) +
+  ggtitle("Pinus") +
+  annotate("text", x=2.5, y=0.0009, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=0.0009, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=0.0009, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_pinu,1,2,0.0006,0.0008)
+
+Diet_pinu
+
+#Plantago (Vejbred) code: plan
+df_plan<-df_raw[which(df_raw$genus=="Plantago"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_plan<-merge(df_plan,meta, by.x="sample", by.y="Samples")
+
+Freq_plan<-Freq_plan[order(Freq_plan$month),]
+
+plan_gal<-subset(Freq_plan, Freq_plan$source=="galloway")
+plan_exm<-subset(Freq_plan, Freq_plan$source=="exmoor")
+
+img_plan<-readJPEG("ITS/Local_analysis/external_figures/Plantago.jpg", native=TRUE) #Include species examples?
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+Diet_plan<-ggplot(plan_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=plan_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=plan_gal,stat="identity", col="darkseagreen4", aes(x=factor(month, level=level_order), y=freq, group=1)) +
+  #stat_summary(data=plan_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(data=plan_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 1.1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Plantago") +
+  annotate("text", x=2.5, y=1.1, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=1.1, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=1.1, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_plan,1,2,0.77,1)
+
+Diet_plan
+
+#Potentilla (Potentil) code: pote
+df_pote<-df_raw[which(df_raw$genus=="Potentilla"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_pote<-merge(df_pote,meta, by.x="sample", by.y="Samples")
+
+Freq_pote<-Freq_pote[order(Freq_pote$month),]
+
+pote_gal<-subset(Freq_pote, Freq_pote$source=="galloway")
+pote_exm<-subset(Freq_pote, Freq_pote$source=="exmoor")
+
+img_pote<-readJPEG("ITS/Local_analysis/external_figures/Potentilla.jpg", native=TRUE) #Include species examples?
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+Diet_pote<-ggplot(pote_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=pote_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=pote_gal,stat="identity", col="darkseagreen4", aes(x=factor(month, level=level_order), y=freq, group=1)) +
+  #stat_summary(data=pote_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(data=pote_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 1.1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Potentilla") +
+  annotate("text", x=2.5, y=1.1, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=1.1, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=1.1, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_pote,1,3,0.8,1)
+
+Diet_pote
+
+#Prunus (Hæg/blomme) code: prun
+df_prun<-df_raw[which(df_raw$genus=="Prunus"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_prun<-merge(df_prun,meta, by.x="sample", by.y="Samples")
+
+Freq_prun<-Freq_prun[order(Freq_prun$month),]
+
+prun_gal<-subset(Freq_prun, Freq_prun$source=="galloway")
+prun_exm<-subset(Freq_prun, Freq_prun$source=="exmoor")
+
+img_prun<-readJPEG("ITS/Local_analysis/external_figures/Prunus.jpg", native=TRUE) #Include species examples?
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+Diet_prun<-ggplot(prun_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=prun_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=prun_gal,stat="identity", col="darkseagreen4", aes(x=factor(month, level=level_order), y=freq, group=1)) +
+  #stat_summary(data=prun_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(data=prun_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 1.1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Prunus") +
+  annotate("text", x=2.5, y=1.1, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=1.1, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=1.1, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_prun,1,2,0.78,1)
+
+Diet_prun
+
+#Quercus (Eg) code: quer
+df_quer<-df_raw[which(df_raw$genus=="Quercus"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_quer<-merge(df_quer,meta, by.x="sample", by.y="Samples")
+
+Freq_quer<-Freq_quer[order(Freq_quer$month),]
+
+quer_gal<-subset(Freq_quer, Freq_quer$source=="galloway")
+quer_exm<-subset(Freq_quer, Freq_quer$source=="exmoor")
+
+img_quer<-readJPEG("ITS/Local_analysis/external_figures/Quercus.jpg", native=TRUE) #Include species examples?
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+Diet_quer<-ggplot(quer_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=quer_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=quer_gal,stat="identity", col="darkseagreen4", aes(x=factor(month, level=level_order), y=freq, group=1)) +
+  #stat_summary(data=quer_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(data=quer_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 1.1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Quercus") +
+  annotate("text", x=2.5, y=1.1, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=1.1, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=1.1, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_quer,2.2,4,0.82,1.01)
+
+Diet_quer
+
+#Rosa (Rose) code: rosa
+df_rosa<-df_raw[which(df_raw$genus=="Rosa"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_rosa<-merge(df_rosa,meta, by.x="sample", by.y="Samples")
+
+Freq_rosa<-Freq_rosa[order(Freq_rosa$month),]
+
+rosa_gal<-subset(Freq_rosa, Freq_rosa$source=="galloway")
+rosa_exm<-subset(Freq_rosa, Freq_rosa$source=="exmoor")
+
+img_rosa<-readJPEG("ITS/Local_analysis/external_figures/Rosa.jpg", native=TRUE) #Include species examples?
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+Diet_rosa<-ggplot(rosa_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=rosa_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=rosa_gal,stat="identity", col="darkseagreen4", aes(x=factor(month, level=level_order), y=freq, group=1)) +
+  #stat_summary(data=rosa_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(data=rosa_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 1.1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Rosa") +
+  annotate("text", x=2.5, y=1.1, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=1.1, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=1.1, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_rosa,1,2.8,0.8,1)
+
+Diet_rosa
+
+#Rubus (hindbær/Brombær) code: Rubu
+df_rubu<-df_raw[which(df_raw$genus=="Rubus"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_rubu<-merge(df_rubu,meta, by.x="sample", by.y="Samples")
+
+Freq_rubu<-Freq_rubu[order(Freq_rubu$month),]
+
+rubu_gal<-subset(Freq_rubu, Freq_rubu$source=="galloway")
+rubu_exm<-subset(Freq_rubu, Freq_rubu$source=="exmoor")
+
+img_rubu<-readJPEG("ITS/Local_analysis/external_figures/Rubus.jpg", native=TRUE) #Include species examples?
+
+Diet_rubu<-ggplot(rubu_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=rubu_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=rubu_gal,stat="identity", col="darkseagreen4") +
+  #stat_summary(data=rubu_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(data=rubu_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 1.1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Rubus") +
+  annotate("text", x=2.5, y=1.1, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=1.1, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=1.1, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_rubu,5,6.8,0.8,1)
+
+Diet_rubu
+
+#Rumex (Skræppe) code: rume
+df_rume<-df_raw[which(df_raw$genus=="Rumex"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_rume<-merge(df_rume,meta, by.x="sample", by.y="Samples")
+
+Freq_rume<-Freq_rume[order(Freq_rume$month),]
+
+rume_gal<-subset(Freq_rume, Freq_rume$source=="galloway")
+rume_exm<-subset(Freq_rume, Freq_rume$source=="exmoor")
+
+img_rume<-readJPEG("ITS/Local_analysis/external_figures/Rumex2.jpg", native=TRUE) #Include species examples?
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+Diet_rume<-ggplot(rume_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=rume_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=rume_gal,stat="identity", col="darkseagreen4", aes(x=factor(month, level=level_order), y=freq, group=1)) +
+  #stat_summary(data=rume_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(data=rume_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 1.1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Rumex") +
+  annotate("text", x=2.5, y=1.1, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=1.1, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=1.1, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_rume,1,2.8,0.8,1)
+
+Diet_rume
+
+#Trifolium (Kløver) code: trif
+df_trif<-df_raw[which(df_raw$genus=="Trifolium"),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_trif<-merge(df_trif,meta, by.x="sample", by.y="Samples")
+
+Freq_trif<-Freq_trif[order(Freq_trif$month),]
+
+trif_gal<-subset(Freq_trif, Freq_trif$source=="galloway")
+trif_exm<-subset(Freq_trif, Freq_trif$source=="exmoor")
+
+img_trif<-readJPEG("ITS/Local_analysis/external_figures/Trifolium.jpg", native=TRUE) #Include species examples?
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+Diet_trif<-ggplot(trif_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=trif_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=trif_gal,stat="identity", col="darkseagreen4", aes(x=factor(month, level=level_order), y=freq, group=1)) +
+  #stat_summary(data=trif_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(data=trif_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 1.1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Trifolium") +
+  annotate("text", x=2.5, y=1.1, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=1.1, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=1.1, label="Late season", cex=3) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Proportion of reads") +
+  annotation_raster(img_trif,1,2.8,0.8,1)
+
+Diet_trif
+
+
+
+#Save plots
+ggarrange(Diet_agro,
+          Diet_alnu,
+          Diet_betu,
+          Diet_call,
+          Diet_care,
+          Diet_cyti,
+          labels = c("A","B","C","D","E","F"), ncol = 2, nrow = 3)
+ggsave("ITS/Local_analysis/output/figures/genera_plots_plants1.png", width=8, height=10)
+
+
+ggarrange(Diet_fagu,
+          Diet_gali,
+          Diet_lotu,
+          Diet_pinu,
+          Diet_plan,
+          Diet_pote,
+          labels = c("G","H","I","J","K","L"), ncol = 2, nrow = 3)
+ggsave("ITS/Local_analysis/output/figures/genera_plots_plants2.png", width=8, height=10)
+
+
+ggarrange(Diet_prun,
+          Diet_quer,
+          Diet_rosa,
+          Diet_rubu,
+          Diet_rume,
+          Diet_trif,
+          labels = c("M","N","O","P","Q","R"), ncol = 2, nrow = 3)
+ggsave("ITS/Local_analysis/output/figures/genera_plots_plants3.png", width=8, height=10)
+
+
+```
+

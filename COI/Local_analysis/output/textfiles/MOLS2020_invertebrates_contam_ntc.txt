@@ -1,0 +1,6 @@
+	count	final.otu	max.sample	max.ntc
+seq171	1044824	Acrolocha sulcula	237835	1
+seq41	4249842	Aphodius conspurcatus	316936	1
+seq24863	7015	Aporrectodea sp.1	1832	6
+seq156099	86	Blattodea sp.1	43	43
+seq427133	6	Chironomidae sp.1	0	6

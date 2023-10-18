@@ -1,0 +1,2343 @@
+---
+title: "Read plots for certain species"
+author: "Emil Ellegaard Thomassen"
+date: "`r Sys.Date()"
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r Setup R and load packages}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.height = 5.5,
+	message = FALSE,
+	warning = FALSE,
+	autodep = TRUE,
+	cache = TRUE,
+	cache.lazy = FALSE,
+	tidy = TRUE,
+	tidy.opts = list(width.cutoff = 80)
+)
+rm(list=ls())
+gc()
+setwd(here::here())
+
+
+
+# Installing packages as needed
+install.load.package <- function(x) {
+  if (!require(x, character.only = TRUE))
+    install.packages(x, repos='http://cran.us.r-project.org', dependencies = TRUE)
+  require(x, character.only = TRUE)
+}
+package_vec <- c("kableExtra", "tidyverse","png", "jpeg", "sp", "ncf","rgdal","MASS", "raster", "ggmap", "ggplot2", "BiodiversityR", "pheatmap", "knitr", "printr", "ade4", "vegan", "ROBITools", "ROBITaxonomy", "dplyr", "tidyr", "plotrix")
+sapply(package_vec, install.load.package)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, cache = TRUE, cache.lazy=FALSE, tidy.opts=list(width.cutoff=80),tidy=TRUE, fig.height=5.5)
+options(digits=4, width = 90)
+
+```
+
+
+```{r Read plots for certain species}
+
+#Loading libraries
+library(tidyverse)
+library(ROBITools)
+library(ROBITaxonomy)
+library(ggpubr)
+library(dplyr)
+library(ggplot2)
+library(ggsci)
+library(RColorBrewer)
+library(png)
+library(patchwork)
+
+#Set level order for plots
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+#Load data
+df_raw <- readRDS("COI/Local_analysis/output/RDS_files/df_for_plots_and_analysis_arthropods")
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_final_arthropods")
+
+#Find species in most samples
+species<-NULL
+nsamples<-NULL
+
+for (i in 1:length(unique(df_raw$species))) {
+  species<-append(species, unique(df_raw$species)[i])
+  nsamples<-append(nsamples, length(which(df_raw$species==unique(df_raw$species)[i])))
+}
+
+hf<-data.frame(species,nsamples)
+
+hf <- hf[order(nsamples),]
+
+natur<-read.delim("COI/Local_analysis/input/naturbasen.txt")
+
+#natur<-data.frame("month"=natur$month, "Apede"=natur$Apede/max(natur$Apede),"Acons"=natur$Acons/max(natur$Acons),"Ahaem"=natur$Ahaem/max(natur$Ahaem),"Astic"=natur$Astic/max(natur$Astic), "Osimi"=natur$Osimi/max(natur$Osimi), "Anost"=natur$Anost/max(natur$Anost), "Mvent"=natur$Mvent/max(natur$Mvent), "Clate"=natur$Clate/max(natur$Clate))
+
+
+#Desoria grisea code: dgris
+df_dgris<-df_raw[which(df_raw$species=="Desoria grisea"),]
+
+Samples_dgris<-unique(df_dgris$sample)
+Freq_dgris<-list()
+
+for (i in 1:length(Samples_dgris)){
+  df<-as.data.frame(Samples_dgris[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_dgris$freq[i]
+  df<-cbind(df, Freq)
+  Freq_dgris<-rbind(Freq_dgris, df)
+}
+
+Freq_dgris<-Freq_dgris %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_dgris<-merge(Freq_dgris,meta,all=TRUE)
+Freq_dgris[is.na(Freq_dgris)]<-0
+
+Freq_dgris<-Freq_dgris[order(Freq_dgris$month),]
+
+dgris_gal<-subset(Freq_dgris, Freq_dgris$source=="galloway")
+dgris_exm<-subset(Freq_dgris, Freq_dgris$source=="exmoor")
+dgris_open<-subset(Freq_dgris, Freq_dgris$habitat=="open")
+dgris_forest<-subset(Freq_dgris, Freq_dgris$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$dgris<-natur$dgris/max(natur$dgris)*max(df_dgris$freq)
+
+
+
+#img_dgris<-readJPEG("COI/Local_analysis/external_figures/Desoria_grisea.jpg", native=TRUE) #Include species examples?
+
+dgris_spe<-ggplot(dgris_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=dgris), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=dgris_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=dgris_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=dgris_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=dgris_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Desoria grisea") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_dgris,xmin="May","July",0.55,0.9)
+
+dgris_spe
+
+dgris_hab<-ggplot(dgris_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=dgris), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=dgris_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=dgris_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=dgris_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=dgris_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Desoria grisea") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_dgris,xmin="May","July",0.55,0.9)
+
+dgris_hab
+
+#Ceratophysella denticulata code: cdent
+df_cdent<-df_raw[which(df_raw$species=="Ceratophysella denticulata"),]
+
+Samples_cdent<-unique(df_cdent$sample)
+Freq_cdent<-list()
+
+for (i in 1:length(Samples_cdent)){
+  df<-as.data.frame(Samples_cdent[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_cdent$freq[i]
+  df<-cbind(df, Freq)
+  Freq_cdent<-rbind(Freq_cdent, df)
+}
+
+Freq_cdent<-Freq_cdent %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_cdent<-merge(Freq_cdent,meta,all=TRUE)
+Freq_cdent[is.na(Freq_cdent)]<-0
+
+Freq_cdent<-Freq_cdent[order(Freq_cdent$month),]
+
+cdent_gal<-subset(Freq_cdent, Freq_cdent$source=="galloway")
+cdent_exm<-subset(Freq_cdent, Freq_cdent$source=="exmoor")
+cdent_open<-subset(Freq_cdent, Freq_cdent$habitat=="open")
+cdent_forest<-subset(Freq_cdent, Freq_cdent$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$cdent<-natur$cdent/max(natur$cdent)*max(df_cdent$freq)
+
+
+
+#img_cdent<-readJPEG("COI/Local_analysis/external_figures/Ceratophysella_denticulata.jpg", native=TRUE) #Include species examples?
+
+cdent_spe<-ggplot(cdent_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=cdent), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=cdent_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=cdent_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=cdent_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=cdent_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Ceratophysella denticulata") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_cdent,xmin="May","July",0.55,0.9)
+
+cdent_spe
+
+cdent_hab<-ggplot(cdent_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=cdent), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=cdent_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=cdent_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=cdent_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=cdent_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Ceratophysella denticulata") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_cdent,xmin="May","July",0.55,0.9)
+
+cdent_hab
+
+#Anoplotrupes stercorosus code: aster
+df_aster<-df_raw[which(df_raw$species=="Anoplotrupes stercorosus"),]
+
+
+Samples_aster<-unique(df_aster$sample)
+Freq_aster<-list()
+
+for (i in 1:length(Samples_aster)){
+  df<-as.data.frame(Samples_aster[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_aster$freq[i]
+  df<-cbind(df, Freq)
+  Freq_aster<-rbind(Freq_aster, df)
+}
+
+Freq_aster<-Freq_aster %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_aster<-merge(Freq_aster,meta,all=TRUE)
+Freq_aster[is.na(Freq_aster)]<-0
+
+Freq_aster<-Freq_aster[order(Freq_aster$month),]
+
+aster_gal<-subset(Freq_aster, Freq_aster$source=="galloway")
+aster_exm<-subset(Freq_aster, Freq_aster$source=="exmoor")
+aster_open<-subset(Freq_aster, Freq_aster$habitat=="open")
+aster_forest<-subset(Freq_aster, Freq_aster$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$aster<-natur$aster/max(natur$aster)*max(df_aster$freq)
+
+
+
+#img_aster<-readJPEG("COI/Local_analysis/external_figures/Anoplotrupes_stercorosus.jpg", native=TRUE) #Include species examples?
+
+aster_spe<-ggplot(aster_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=aster), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=aster_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=aster_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=aster_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=aster_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 0.01)) +
+  scale_y_continuous(breaks=c(0,0.001,0.002,0.003,0.004,0.005,0.006,0.007,0.008,0.009,1.000)) +
+  ggtitle("Anoplotrupes stercorosus") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_aster,xmin="May","July",0.55,0.9)
+
+aster_spe
+
+aster_hab<-ggplot(aster_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=aster), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=aster_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=aster_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=aster_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=aster_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 0.01)) +
+  scale_y_continuous(breaks=c(0,0.001,0.002,0.003,0.004,0.005,0.006,0.007,0.008,0.009,1.000)) +
+  ggtitle("Anoplotrupes stercorosus") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_aster,xmin="May","July",0.55,0.9)
+
+aster_hab
+
+#Margarinotus ventralis code: mvent
+df_mvent<-df_raw[which(df_raw$species=="Margarinotus ventralis"),]
+
+Samples_mvent<-unique(df_mvent$sample)
+Freq_mvent<-list()
+
+for (i in 1:length(Samples_mvent)){
+  df<-as.data.frame(Samples_mvent[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_mvent$freq[i]
+  df<-cbind(df, Freq)
+  Freq_mvent<-rbind(Freq_mvent, df)
+}
+
+Freq_mvent<-Freq_mvent %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_mvent<-merge(Freq_mvent,meta,all=TRUE)
+Freq_mvent[is.na(Freq_mvent)]<-0
+
+Freq_mvent<-Freq_mvent[order(Freq_mvent$month),]
+
+mvent_gal<-subset(Freq_mvent, Freq_mvent$source=="galloway")
+mvent_exm<-subset(Freq_mvent, Freq_mvent$source=="exmoor")
+mvent_open<-subset(Freq_mvent, Freq_mvent$habitat=="open")
+mvent_forest<-subset(Freq_mvent, Freq_mvent$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$mvent<-natur$mvent/max(natur$mvent)*max(df_mvent$freq)
+
+
+
+#img_mvent<-readJPEG("COI/Local_analysis/external_figures/Margarinotus_ventralis.jpg", native=TRUE) #Include species examples?
+
+mvent_spe<-ggplot(mvent_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=mvent), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=mvent_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=mvent_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=mvent_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=mvent_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 0.7)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Margarinotus ventralis") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_mvent,xmin="May","July",0.55,0.9)
+
+mvent_spe
+
+mvent_hab<-ggplot(mvent_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=mvent), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=mvent_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=mvent_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=mvent_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=mvent_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 0.7)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Margarinotus ventralis") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_mvent,xmin="May","July",0.55,0.9)
+
+mvent_hab
+
+#Cercyon lateralis code: clate
+df_clate<-df_raw[which(df_raw$species=="Cercyon lateralis"),]
+
+Samples_clate<-unique(df_clate$sample)
+Freq_clate<-list()
+
+for (i in 1:length(Samples_clate)){
+  df<-as.data.frame(Samples_clate[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_clate$freq[i]
+  df<-cbind(df, Freq)
+  Freq_clate<-rbind(Freq_clate, df)
+}
+
+Freq_clate<-Freq_clate %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_clate<-merge(Freq_clate,meta,all=TRUE)
+Freq_clate[is.na(Freq_clate)]<-0
+
+Freq_clate<-Freq_clate[order(Freq_clate$month),]
+
+clate_gal<-subset(Freq_clate, Freq_clate$source=="galloway")
+clate_exm<-subset(Freq_clate, Freq_clate$source=="exmoor")
+clate_open<-subset(Freq_clate, Freq_clate$habitat=="open")
+clate_forest<-subset(Freq_clate, Freq_clate$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$clate<-natur$clate/max(natur$clate)*max(df_clate$freq)
+
+
+
+#img_clate<-readJPEG("COI/Local_analysis/external_figures/Cercyon_lateralis.jpg", native=TRUE) #Include species examples?
+
+clate_spe<-ggplot(clate_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=clate), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=clate_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=clate_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=clate_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=clate_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 0.4)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Cercyon lateralis") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_clate,xmin="May","July",0.55,0.9)
+
+clate_spe
+
+clate_hab<-ggplot(clate_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=clate), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=clate_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=clate_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=clate_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=clate_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0,0.4)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Cercyon lateralis") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_clate,xmin="May","July",0.55,0.9)
+
+clate_hab
+
+#Cryptopleurum minutum code: cminu
+df_cminu<-df_raw[which(df_raw$species=="Cryptopleurum minutum"),]
+
+Samples_cminu<-unique(df_cminu$sample)
+Freq_cminu<-list()
+
+for (i in 1:length(Samples_cminu)){
+  df<-as.data.frame(Samples_cminu[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_cminu$freq[i]
+  df<-cbind(df, Freq)
+  Freq_cminu<-rbind(Freq_cminu, df)
+}
+
+Freq_cminu<-Freq_cminu %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_cminu<-merge(Freq_cminu,meta,all=TRUE)
+Freq_cminu[is.na(Freq_cminu)]<-0
+
+Freq_cminu<-Freq_cminu[order(Freq_cminu$month),]
+
+cminu_gal<-subset(Freq_cminu, Freq_cminu$source=="galloway")
+cminu_exm<-subset(Freq_cminu, Freq_cminu$source=="exmoor")
+cminu_open<-subset(Freq_cminu, Freq_cminu$habitat=="open")
+cminu_forest<-subset(Freq_cminu, Freq_cminu$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$cminu<-natur$cminu/max(natur$cminu)*max(df_cminu$freq)
+
+
+
+#img_cminu<-readJPEG("COI/Local_analysis/external_figures/Cryptopleurum_minutum.jpg", native=TRUE) #Include species examples?
+
+cminu_spe<-ggplot(cminu_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=cminu), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=cminu_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=cminu_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=cminu_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=cminu_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Cryptopleurum minutum") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_cminu,xmin="May","July",0.55,0.9)
+
+cminu_spe
+
+cminu_hab<-ggplot(cminu_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=cminu), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=cminu_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=cminu_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=cminu_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=cminu_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Cryptopleurum minutum") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_cminu,xmin="May","July",0.55,0.9)
+
+cminu_hab
+
+#Sphaeridium sp.1 (lunatum/bipustulatum) code: sluna
+df_sluna<-df_raw[which(df_raw$species=="Sphaeridium sp.1 (lunatum/bipustulatum)"),]
+
+Samples_sluna<-unique(df_sluna$sample)
+Freq_sluna<-list()
+
+for (i in 1:length(Samples_sluna)){
+  df<-as.data.frame(Samples_sluna[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_sluna$freq[i]
+  df<-cbind(df, Freq)
+  Freq_sluna<-rbind(Freq_sluna, df)
+}
+
+Freq_sluna<-Freq_sluna %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_sluna<-merge(Freq_sluna,meta,all=TRUE)
+Freq_sluna[is.na(Freq_sluna)]<-0
+
+Freq_sluna<-Freq_sluna[order(Freq_sluna$month),]
+
+sluna_gal<-subset(Freq_sluna, Freq_sluna$source=="galloway")
+sluna_exm<-subset(Freq_sluna, Freq_sluna$source=="exmoor")
+sluna_open<-subset(Freq_sluna, Freq_sluna$habitat=="open")
+sluna_forest<-subset(Freq_sluna, Freq_sluna$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$sluna<-natur$sluna/max(natur$sluna)*max(df_sluna$freq)
+
+
+
+#img_sluna<-readJPEG("COI/Local_analysis/external_figures/Sphaeridium_lunatum.jpg", native=TRUE) #Include species examples?
+
+sluna_spe<-ggplot(sluna_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=sluna), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=sluna_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=sluna_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=sluna_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=sluna_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 0.3)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Sphaeridium sp.1 (lunatum/bipustulatum)") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_sluna,xmin="May","July",0.55,0.9)
+
+sluna_spe
+
+sluna_hab<-ggplot(sluna_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=sluna), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=sluna_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=sluna_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=sluna_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=sluna_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 0.3)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Sphaeridium sp.1 (lunatum/bipustulatum)") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_sluna,xmin="May","July",0.55,0.9)
+
+sluna_hab
+
+
+#Aphodius conspurcatus code: acons
+df_acons<-df_raw[which(df_raw$species=="Aphodius conspurcatus"),]
+
+Samples_acons<-unique(df_acons$sample)
+Freq_acons<-list()
+
+for (i in 1:length(Samples_acons)){
+  df<-as.data.frame(Samples_acons[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_acons$freq[i]
+  df<-cbind(df, Freq)
+  Freq_acons<-rbind(Freq_acons, df)
+}
+
+Freq_acons<-Freq_acons %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_acons<-merge(Freq_acons,meta,all=TRUE)
+Freq_acons[is.na(Freq_acons)]<-0
+
+Freq_acons<-Freq_acons[order(Freq_acons$month),]
+
+acons_gal<-subset(Freq_acons, Freq_acons$source=="galloway")
+acons_exm<-subset(Freq_acons, Freq_acons$source=="exmoor")
+acons_open<-subset(Freq_acons, Freq_acons$habitat=="open")
+acons_forest<-subset(Freq_acons, Freq_acons$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$acons<-natur$acons/max(natur$acons)*max(df_acons$freq)
+
+
+
+#img_acons<-readJPEG("COI/Local_analysis/external_figures/Aphodius_conspurcatus.jpg", native=TRUE) #Include species examples?
+
+acons_spe<-ggplot(acons_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=acons), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=acons_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=acons_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=acons_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=acons_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Aphodius conspurcatus") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_acons,xmin="May","July",0.55,0.9)
+
+acons_spe
+
+acons_hab<-ggplot(acons_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=acons), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=acons_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=acons_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=acons_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=acons_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Aphodius conspurcatus") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_acons,xmin="May","July",0.55,0.9)
+
+acons_hab
+
+#Aphodius contaminatus code: acont
+df_acont<-df_raw[which(df_raw$species=="Aphodius contaminatus"),]
+
+Samples_acont<-unique(df_acont$sample)
+Freq_acont<-list()
+
+for (i in 1:length(Samples_acont)){
+  df<-as.data.frame(Samples_acont[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_acont$freq[i]
+  df<-cbind(df, Freq)
+  Freq_acont<-rbind(Freq_acont, df)
+}
+
+Freq_acont<-Freq_acont %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_acont<-merge(Freq_acont,meta,all=TRUE)
+Freq_acont[is.na(Freq_acont)]<-0
+
+Freq_acont<-Freq_acont[order(Freq_acont$month),]
+
+acont_gal<-subset(Freq_acont, Freq_acont$source=="galloway")
+acont_exm<-subset(Freq_acont, Freq_acont$source=="exmoor")
+acont_open<-subset(Freq_acont, Freq_acont$habitat=="open")
+acont_forest<-subset(Freq_acont, Freq_acont$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$acont<-natur$acont/max(natur$acont)*max(df_acont$freq)
+
+
+
+#img_acont<-readJPEG("COI/Local_analysis/external_figures/Aphodius_contaminatus.jpg", native=TRUE) #Include species examples?
+
+acont_spe<-ggplot(acont_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=acont), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=acont_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=acont_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=acont_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=acont_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Aphodius contaminatus") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_acont,xmin="May","July",0.55,0.9)
+
+acont_spe
+
+acont_hab<-ggplot(acont_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=acont), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=acont_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=acont_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=acont_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=acont_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Aphodius contaminatus") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_acont,xmin="May","July",0.55,0.9)
+
+acont_hab
+
+#Aphodius haemorrhoidalis code: ahaem
+df_ahaem<-df_raw[which(df_raw$species=="Aphodius haemorrhoidalis"),]
+
+Samples_ahaem<-unique(df_ahaem$sample)
+Freq_ahaem<-list()
+
+for (i in 1:length(Samples_ahaem)){
+  df<-as.data.frame(Samples_ahaem[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_ahaem$freq[i]
+  df<-cbind(df, Freq)
+  Freq_ahaem<-rbind(Freq_ahaem, df)
+}
+
+Freq_ahaem<-Freq_ahaem %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_ahaem<-merge(Freq_ahaem,meta,all=TRUE)
+Freq_ahaem[is.na(Freq_ahaem)]<-0
+
+Freq_ahaem<-Freq_ahaem[order(Freq_ahaem$month),]
+
+ahaem_gal<-subset(Freq_ahaem, Freq_ahaem$source=="galloway")
+ahaem_exm<-subset(Freq_ahaem, Freq_ahaem$source=="exmoor")
+ahaem_open<-subset(Freq_ahaem, Freq_ahaem$habitat=="open")
+ahaem_forest<-subset(Freq_ahaem, Freq_ahaem$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$ahaem<-natur$ahaem/max(natur$ahaem)*max(df_ahaem$freq)
+
+
+
+#img_ahaem<-readJPEG("COI/Local_analysis/external_figures/Aphodius_haemorrhoidalis.jpg", native=TRUE) #Include species examples?
+
+ahaem_spe<-ggplot(ahaem_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=ahaem), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=ahaem_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=ahaem_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=ahaem_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=ahaem_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Aphodius haemorrhoidalis") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_ahaem,xmin="May","July",0.55,0.9)
+
+ahaem_spe
+
+ahaem_hab<-ggplot(ahaem_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=ahaem), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=ahaem_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=ahaem_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=ahaem_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=ahaem_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Aphodius haemorrhoidalis") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_ahaem,xmin="May","July",0.55,0.9)
+
+ahaem_hab
+
+#Aphodius rufus code: arufu
+df_arufu<-df_raw[which(df_raw$species=="Aphodius rufus"),]
+
+Samples_arufu<-unique(df_arufu$sample)
+Freq_arufu<-list()
+
+for (i in 1:length(Samples_arufu)){
+  df<-as.data.frame(Samples_arufu[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_arufu$freq[i]
+  df<-cbind(df, Freq)
+  Freq_arufu<-rbind(Freq_arufu, df)
+}
+
+Freq_arufu<-Freq_arufu %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_arufu<-merge(Freq_arufu,meta,all=TRUE)
+Freq_arufu[is.na(Freq_arufu)]<-0
+
+Freq_arufu<-Freq_arufu[order(Freq_arufu$month),]
+
+arufu_gal<-subset(Freq_arufu, Freq_arufu$source=="galloway")
+arufu_exm<-subset(Freq_arufu, Freq_arufu$source=="exmoor")
+arufu_open<-subset(Freq_arufu, Freq_arufu$habitat=="open")
+arufu_forest<-subset(Freq_arufu, Freq_arufu$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$arufu<-natur$arufu/max(natur$arufu)*max(df_arufu$freq)
+
+
+
+#img_arufu<-readJPEG("COI/Local_analysis/external_figures/Aphodius_rufus.jpg", native=TRUE) #Include species examples?
+
+arufu_spe<-ggplot(arufu_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=arufu), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=arufu_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=arufu_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=arufu_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=arufu_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Aphodius rufus") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_arufu,xmin="May","July",0.55,0.9)
+
+arufu_spe
+
+arufu_hab<-ggplot(arufu_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=arufu), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=arufu_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=arufu_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=arufu_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=arufu_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Aphodius rufus") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_arufu,xmin="May","July",0.55,0.9)
+
+arufu_hab
+
+#Aphodius sp.12 (sphacelatus/prodromus) code: aprod
+df_aprod<-df_raw[which(df_raw$species=="Aphodius sp.12 (sphacelatus/prodromus)" | df_raw$species=="Aphodius sphacelatus") ,]
+
+Samples_aprod<-unique(df_aprod$sample)
+Freq_aprod<-list()
+
+for (i in 1:length(Samples_aprod)){
+  df<-as.data.frame(Samples_aprod[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_aprod$freq[i]
+  df<-cbind(df, Freq)
+  Freq_aprod<-rbind(Freq_aprod, df)
+}
+
+Freq_aprod<-Freq_aprod %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_aprod<-merge(Freq_aprod,meta,all=TRUE)
+Freq_aprod[is.na(Freq_aprod)]<-0
+
+Freq_aprod<-Freq_aprod[order(Freq_aprod$month),]
+
+aprod_gal<-subset(Freq_aprod, Freq_aprod$source=="galloway")
+aprod_exm<-subset(Freq_aprod, Freq_aprod$source=="exmoor")
+aprod_open<-subset(Freq_aprod, Freq_aprod$habitat=="open")
+aprod_forest<-subset(Freq_aprod, Freq_aprod$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$aprod<-natur$aprod/max(natur$aprod)*max(df_aprod$freq)
+
+
+
+#img_aprod<-readJPEG("COI/Local_analysis/external_figures/Aphodius_prodromus.jpg", native=TRUE) #Include species examples?
+
+aprod_spe<-ggplot(aprod_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=aprod), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=aprod_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=aprod_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=aprod_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=aprod_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Aphodius sp.12 (sphacelatus/prodromus)") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_aprod,xmin="May","July",0.55,0.9)
+
+aprod_spe
+
+aprod_hab<-ggplot(aprod_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=aprod), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=aprod_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=aprod_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=aprod_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=aprod_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Aphodius sp.12 (sphacelatus/prodromus)") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_aprod,xmin="May","July",0.55,0.9)
+
+aprod_hab
+
+#Aphodius sticticus code: astic
+df_astic<-df_raw[which(df_raw$species=="Aphodius sticticus") ,]
+
+Samples_astic<-unique(df_astic$sample)
+Freq_astic<-list()
+
+for (i in 1:length(Samples_astic)){
+  df<-as.data.frame(Samples_astic[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_astic$freq[i]
+  df<-cbind(df, Freq)
+  Freq_astic<-rbind(Freq_astic, df)
+}
+
+Freq_astic<-Freq_astic %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_astic<-merge(Freq_astic,meta,all=TRUE)
+Freq_astic[is.na(Freq_astic)]<-0
+
+Freq_astic<-Freq_astic[order(Freq_astic$month),]
+
+astic_gal<-subset(Freq_astic, Freq_astic$source=="galloway")
+astic_exm<-subset(Freq_astic, Freq_astic$source=="exmoor")
+astic_open<-subset(Freq_astic, Freq_astic$habitat=="open")
+astic_forest<-subset(Freq_astic, Freq_astic$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$astic<-natur$astic/max(natur$astic)*max(df_astic$freq)
+
+
+
+#img_astic<-readJPEG("COI/Local_analysis/external_figures/Aphodius_sticticus.jpg", native=TRUE) #Include species examples?
+
+astic_spe<-ggplot(astic_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=astic), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=astic_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=astic_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=astic_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=astic_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Aphodius sticticus") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_astic,xmin="May","July",0.55,0.9)
+
+astic_spe
+
+astic_hab<-ggplot(astic_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=astic), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=astic_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=astic_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=astic_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=astic_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Aphodius sticticus") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_astic,xmin="May","July",0.55,0.9)
+
+astic_hab
+
+#Onthophagus similis code: osimi
+df_osimi<-df_raw[which(df_raw$species=="Onthophagus similis") ,]
+
+Samples_osimi<-unique(df_osimi$sample)
+Freq_osimi<-list()
+
+for (i in 1:length(Samples_osimi)){
+  df<-as.data.frame(Samples_osimi[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_osimi$freq[i]
+  df<-cbind(df, Freq)
+  Freq_osimi<-rbind(Freq_osimi, df)
+}
+
+Freq_osimi<-Freq_osimi %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_osimi<-merge(Freq_osimi,meta,all=TRUE)
+Freq_osimi[is.na(Freq_osimi)]<-0
+
+Freq_osimi<-Freq_osimi[order(Freq_osimi$month),]
+
+osimi_gal<-subset(Freq_osimi, Freq_osimi$source=="galloway")
+osimi_exm<-subset(Freq_osimi, Freq_osimi$source=="exmoor")
+osimi_open<-subset(Freq_osimi, Freq_osimi$habitat=="open")
+osimi_forest<-subset(Freq_osimi, Freq_osimi$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$osimi<-natur$osimi/max(natur$osimi)*max(df_osimi$freq)
+
+
+
+#img_osimi<-readJPEG("COI/Local_analysis/external_figures/Onthophagus_similis.jpg", native=TRUE) #Include species examples?
+
+osimi_spe<-ggplot(osimi_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=osimi), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=osimi_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=osimi_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=osimi_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=osimi_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 0.3)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Onthophagus similis") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_osimi,xmin="May","July",0.55,0.9)
+
+osimi_spe
+
+osimi_hab<-ggplot(osimi_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=osimi), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=osimi_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=osimi_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=osimi_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=osimi_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 0.3)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Onthophagus similis") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_osimi,xmin="May","July",0.55,0.9)
+
+osimi_hab
+
+#Acrolocha sulcula code: asulc
+df_asulc<-df_raw[which(df_raw$species=="Acrolocha sulcula") ,]
+
+Samples_asulc<-unique(df_asulc$sample)
+Freq_asulc<-list()
+
+for (i in 1:length(Samples_asulc)){
+  df<-as.data.frame(Samples_asulc[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_asulc$freq[i]
+  df<-cbind(df, Freq)
+  Freq_asulc<-rbind(Freq_asulc, df)
+}
+
+Freq_asulc<-Freq_asulc %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_asulc<-merge(Freq_asulc,meta,all=TRUE)
+Freq_asulc[is.na(Freq_asulc)]<-0
+
+Freq_asulc<-Freq_asulc[order(Freq_asulc$month),]
+
+asulc_gal<-subset(Freq_asulc, Freq_asulc$source=="galloway")
+asulc_exm<-subset(Freq_asulc, Freq_asulc$source=="exmoor")
+asulc_open<-subset(Freq_asulc, Freq_asulc$habitat=="open")
+asulc_forest<-subset(Freq_asulc, Freq_asulc$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$asulc<-natur$asulc/max(natur$asulc)*max(df_asulc$freq)
+
+
+
+#img_asulc<-readJPEG("COI/Local_analysis/external_figures/Acrolocha_sulcula.jpg", native=TRUE) #Include species examples?
+
+asulc_spe<-ggplot(asulc_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=asulc), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=asulc_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=asulc_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=asulc_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=asulc_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Acrolocha sulcula") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_asulc,xmin="May","July",0.55,0.9)
+
+asulc_spe
+
+asulc_hab<-ggplot(asulc_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=asulc), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=asulc_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=asulc_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=asulc_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=asulc_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Acrolocha sulcula") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_asulc,xmin="May","July",0.55,0.9)
+
+asulc_hab
+
+#Atheta cinnamoptera code: acinn
+df_acinn<-df_raw[which(df_raw$species=="Atheta cinnamoptera") ,]
+
+Samples_acinn<-unique(df_acinn$sample)
+Freq_acinn<-list()
+
+for (i in 1:length(Samples_acinn)){
+  df<-as.data.frame(Samples_acinn[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_acinn$freq[i]
+  df<-cbind(df, Freq)
+  Freq_acinn<-rbind(Freq_acinn, df)
+}
+
+Freq_acinn<-Freq_acinn %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_acinn<-merge(Freq_acinn,meta,all=TRUE)
+Freq_acinn[is.na(Freq_acinn)]<-0
+
+Freq_acinn<-Freq_acinn[order(Freq_acinn$month),]
+
+acinn_gal<-subset(Freq_acinn, Freq_acinn$source=="galloway")
+acinn_exm<-subset(Freq_acinn, Freq_acinn$source=="exmoor")
+acinn_open<-subset(Freq_acinn, Freq_acinn$habitat=="open")
+acinn_forest<-subset(Freq_acinn, Freq_acinn$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$acinn<-natur$acinn/max(natur$acinn)*max(df_acinn$freq)
+
+
+
+#img_acinn<-readJPEG("COI/Local_analysis/external_figures/Atheta_cinnamoptera.jpg", native=TRUE) #Include species examples?
+
+acinn_spe<-ggplot(acinn_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=acinn), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=acinn_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=acinn_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=acinn_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=acinn_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Atheta cinnamoptera") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_acinn,xmin="May","July",0.55,0.9)
+
+acinn_spe
+
+acinn_hab<-ggplot(acinn_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=acinn), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=acinn_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=acinn_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=acinn_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=acinn_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Atheta cinnamoptera") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_acinn,xmin="May","July",0.55,0.9)
+
+acinn_hab
+
+#Oxytelus laqueatus code: olaqu
+df_olaqu<-df_raw[which(df_raw$species=="Oxytelus laqueatus") ,]
+
+Samples_olaqu<-unique(df_olaqu$sample)
+Freq_olaqu<-list()
+
+for (i in 1:length(Samples_olaqu)){
+  df<-as.data.frame(Samples_olaqu[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_olaqu$freq[i]
+  df<-cbind(df, Freq)
+  Freq_olaqu<-rbind(Freq_olaqu, df)
+}
+
+Freq_olaqu<-Freq_olaqu %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_olaqu<-merge(Freq_olaqu,meta,all=TRUE)
+Freq_olaqu[is.na(Freq_olaqu)]<-0
+
+Freq_olaqu<-Freq_olaqu[order(Freq_olaqu$month),]
+
+olaqu_gal<-subset(Freq_olaqu, Freq_olaqu$source=="galloway")
+olaqu_exm<-subset(Freq_olaqu, Freq_olaqu$source=="exmoor")
+olaqu_open<-subset(Freq_olaqu, Freq_olaqu$habitat=="open")
+olaqu_forest<-subset(Freq_olaqu, Freq_olaqu$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$olaqu<-natur$olaqu/max(natur$olaqu)*max(df_olaqu$freq)
+
+
+
+#img_olaqu<-readJPEG("COI/Local_analysis/external_figures/Oxytelus_laqueatus.jpg", native=TRUE) #Include species examples?
+
+olaqu_spe<-ggplot(olaqu_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=olaqu), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=olaqu_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=olaqu_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=olaqu_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=olaqu_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Oxytelus laqueatus") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_olaqu,xmin="May","July",0.55,0.9)
+
+olaqu_spe
+
+olaqu_hab<-ggplot(olaqu_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=olaqu), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=olaqu_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=olaqu_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=olaqu_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=olaqu_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Oxytelus laqueatus") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_olaqu,xmin="May","July",0.55,0.9)
+
+olaqu_hab
+
+#Philonthus tenuicornis code: ptenu
+df_ptenu<-df_raw[which(df_raw$species=="Philonthus tenuicornis") ,]
+
+Samples_ptenu<-unique(df_ptenu$sample)
+Freq_ptenu<-list()
+
+for (i in 1:length(Samples_ptenu)){
+  df<-as.data.frame(Samples_ptenu[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_ptenu$freq[i]
+  df<-cbind(df, Freq)
+  Freq_ptenu<-rbind(Freq_ptenu, df)
+}
+
+Freq_ptenu<-Freq_ptenu %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_ptenu<-merge(Freq_ptenu,meta,all=TRUE)
+Freq_ptenu[is.na(Freq_ptenu)]<-0
+
+Freq_ptenu<-Freq_ptenu[order(Freq_ptenu$month),]
+
+ptenu_gal<-subset(Freq_ptenu, Freq_ptenu$source=="galloway")
+ptenu_exm<-subset(Freq_ptenu, Freq_ptenu$source=="exmoor")
+ptenu_open<-subset(Freq_ptenu, Freq_ptenu$habitat=="open")
+ptenu_forest<-subset(Freq_ptenu, Freq_ptenu$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$ptenu<-natur$ptenu/max(natur$ptenu)*max(df_ptenu$freq)
+
+
+
+#img_ptenu<-readJPEG("COI/Local_analysis/external_figures/Philonthus_tenuicornis.jpg", native=TRUE) #Include species examples?
+
+ptenu_spe<-ggplot(ptenu_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=ptenu), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=ptenu_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=ptenu_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=ptenu_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=ptenu_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Philonthus tenuicornis") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_ptenu,xmin="May","July",0.55,0.9)
+
+ptenu_spe
+
+ptenu_hab<-ggplot(ptenu_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=ptenu), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=ptenu_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=ptenu_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=ptenu_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=ptenu_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Philonthus tenuicornis") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_ptenu,xmin="May","July",0.55,0.9)
+
+ptenu_hab
+
+#Sylvicola stackelbergi code: sstac
+df_sstac<-df_raw[which(df_raw$species=="Sylvicola stackelbergi") ,]
+
+Samples_sstac<-unique(df_sstac$sample)
+Freq_sstac<-list()
+
+for (i in 1:length(Samples_sstac)){
+  df<-as.data.frame(Samples_sstac[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_sstac$freq[i]
+  df<-cbind(df, Freq)
+  Freq_sstac<-rbind(Freq_sstac, df)
+}
+
+Freq_sstac<-Freq_sstac %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_sstac<-merge(Freq_sstac,meta,all=TRUE)
+Freq_sstac[is.na(Freq_sstac)]<-0
+
+Freq_sstac<-Freq_sstac[order(Freq_sstac$month),]
+
+sstac_gal<-subset(Freq_sstac, Freq_sstac$source=="galloway")
+sstac_exm<-subset(Freq_sstac, Freq_sstac$source=="exmoor")
+sstac_open<-subset(Freq_sstac, Freq_sstac$habitat=="open")
+sstac_forest<-subset(Freq_sstac, Freq_sstac$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$sstac<-natur$sstac/max(natur$sstac)*max(df_sstac$freq)
+
+
+
+#img_sstac<-readJPEG("COI/Local_analysis/external_figures/Sylvicola_stackelbergi.jpg", native=TRUE) #Include species examples?
+
+sstac_spe<-ggplot(sstac_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=sstac), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=sstac_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=sstac_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=sstac_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=sstac_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Sylvicola stackelbergi") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_sstac,xmin="May","July",0.55,0.9)
+
+sstac_spe
+
+sstac_hab<-ggplot(sstac_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=sstac), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=sstac_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=sstac_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=sstac_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=sstac_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Sylvicola stackelbergi") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_sstac,xmin="May","July",0.55,0.9)
+
+sstac_hab
+
+#Camptocladius stercorarius code: cster
+df_cster<-df_raw[which(df_raw$species=="Camptocladius stercorarius") ,]
+
+Samples_cster<-unique(df_cster$sample)
+Freq_cster<-list()
+
+for (i in 1:length(Samples_cster)){
+  df<-as.data.frame(Samples_cster[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_cster$freq[i]
+  df<-cbind(df, Freq)
+  Freq_cster<-rbind(Freq_cster, df)
+}
+
+Freq_cster<-Freq_cster %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_cster<-merge(Freq_cster,meta,all=TRUE)
+Freq_cster[is.na(Freq_cster)]<-0
+
+Freq_cster<-Freq_cster[order(Freq_cster$month),]
+
+cster_gal<-subset(Freq_cster, Freq_cster$source=="galloway")
+cster_exm<-subset(Freq_cster, Freq_cster$source=="exmoor")
+cster_open<-subset(Freq_cster, Freq_cster$habitat=="open")
+cster_forest<-subset(Freq_cster, Freq_cster$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$cster<-natur$cster/max(natur$cster)*max(df_cster$freq)
+
+
+
+#img_cster<-readJPEG("COI/Local_analysis/external_figures/Camptocladius_stercorarius.jpg", native=TRUE) #Include species examples?
+
+cster_spe<-ggplot(cster_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=cster), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=cster_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=cster_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=cster_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=cster_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Camptocladius stercorarius") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_cster,xmin="May","July",0.55,0.9)
+
+cster_spe
+
+cster_hab<-ggplot(cster_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=cster), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=cster_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=cster_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=cster_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=cster_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Camptocladius stercorarius") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_cster,xmin="May","July",0.55,0.9)
+
+cster_hab
+
+#Phortica sp.1 (spinosa) code: pspin
+df_pspin<-df_raw[which(df_raw$species=="Phortica sp.1 (spinosa)") ,]
+
+Samples_pspin<-unique(df_pspin$sample)
+Freq_pspin<-list()
+
+for (i in 1:length(Samples_pspin)){
+  df<-as.data.frame(Samples_pspin[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_pspin$freq[i]
+  df<-cbind(df, Freq)
+  Freq_pspin<-rbind(Freq_pspin, df)
+}
+
+Freq_pspin<-Freq_pspin %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_pspin<-merge(Freq_pspin,meta,all=TRUE)
+Freq_pspin[is.na(Freq_pspin)]<-0
+
+Freq_pspin<-Freq_pspin[order(Freq_pspin$month),]
+
+pspin_gal<-subset(Freq_pspin, Freq_pspin$source=="galloway")
+pspin_exm<-subset(Freq_pspin, Freq_pspin$source=="exmoor")
+pspin_open<-subset(Freq_pspin, Freq_pspin$habitat=="open")
+pspin_forest<-subset(Freq_pspin, Freq_pspin$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$pspin<-natur$pspin/max(natur$pspin)*max(df_pspin$freq)
+
+
+
+#img_pspin<-readJPEG("COI/Local_analysis/external_figures/Phortica_spinosa.jpg", native=TRUE) #Include species examples?
+
+pspin_spe<-ggplot(pspin_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=pspin), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=pspin_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=pspin_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=pspin_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=pspin_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Phortica sp.1 (spinosa)") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_pspin,xmin="May","July",0.55,0.9)
+
+pspin_spe
+
+pspin_hab<-ggplot(pspin_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=pspin), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=pspin_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=pspin_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=pspin_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=pspin_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Phortica sp.1 (spinosa)") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_pspin,xmin="May","July",0.55,0.9)
+
+pspin_hab
+
+#Musca autumnalis code: mauto
+df_mauto<-df_raw[which(df_raw$species=="Musca autumnalis") ,]
+
+Samples_mauto<-unique(df_mauto$sample)
+Freq_mauto<-list()
+
+for (i in 1:length(Samples_mauto)){
+  df<-as.data.frame(Samples_mauto[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_mauto$freq[i]
+  df<-cbind(df, Freq)
+  Freq_mauto<-rbind(Freq_mauto, df)
+}
+
+Freq_mauto<-Freq_mauto %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_mauto<-merge(Freq_mauto,meta,all=TRUE)
+Freq_mauto[is.na(Freq_mauto)]<-0
+
+Freq_mauto<-Freq_mauto[order(Freq_mauto$month),]
+
+mauto_gal<-subset(Freq_mauto, Freq_mauto$source=="galloway")
+mauto_exm<-subset(Freq_mauto, Freq_mauto$source=="exmoor")
+mauto_open<-subset(Freq_mauto, Freq_mauto$habitat=="open")
+mauto_forest<-subset(Freq_mauto, Freq_mauto$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$mauto<-natur$mauto/max(natur$mauto)*max(df_mauto$freq)
+
+
+
+#img_mauto<-readJPEG("COI/Local_analysis/external_figures/Musca_autumnalis.jpg", native=TRUE) #Include species examples?
+
+mauto_spe<-ggplot(mauto_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=mauto), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=mauto_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=mauto_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=mauto_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=mauto_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Musca autumnalis") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_mauto,xmin="May","July",0.55,0.9)
+
+mauto_spe
+
+mauto_hab<-ggplot(mauto_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=mauto), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=mauto_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=mauto_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=mauto_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=mauto_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Musca autumnalis") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_mauto,xmin="May","July",0.55,0.9)
+
+mauto_hab
+
+#Psychoda phalaenoides code: pphal
+df_pphal<-df_raw[which(df_raw$species=="Psychoda phalaenoides" | df_raw$species=="Psychoda sp.2 (phalaenoides)") ,]
+
+Samples_pphal<-unique(df_pphal$sample)
+Freq_pphal<-list()
+
+for (i in 1:length(Samples_pphal)){
+  df<-as.data.frame(Samples_pphal[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_pphal$freq[i]
+  df<-cbind(df, Freq)
+  Freq_pphal<-rbind(Freq_pphal, df)
+}
+
+Freq_pphal<-Freq_pphal %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_pphal<-merge(Freq_pphal,meta,all=TRUE)
+Freq_pphal[is.na(Freq_pphal)]<-0
+
+Freq_pphal<-Freq_pphal[order(Freq_pphal$month),]
+
+pphal_gal<-subset(Freq_pphal, Freq_pphal$source=="galloway")
+pphal_exm<-subset(Freq_pphal, Freq_pphal$source=="exmoor")
+pphal_open<-subset(Freq_pphal, Freq_pphal$habitat=="open")
+pphal_forest<-subset(Freq_pphal, Freq_pphal$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$pphal<-natur$pphal/max(natur$pphal)*max(df_pphal$freq)
+
+
+
+#img_pphal<-readJPEG("COI/Local_analysis/external_figures/Psychoda_phalaenoides.jpg", native=TRUE) #Include species examples?
+
+pphal_spe<-ggplot(pphal_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=pphal), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=pphal_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=pphal_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=pphal_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=pphal_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Psychoda phalaenoides") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_pphal,xmin="May","July",0.55,0.9)
+
+pphal_spe
+
+pphal_hab<-ggplot(pphal_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=pphal), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=pphal_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=pphal_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=pphal_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=pphal_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Psychoda phalaenoides") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_pphal,xmin="May","July",0.55,0.9)
+
+pphal_hab
+
+#Saltella sphondylii code: sspho
+df_sspho<-df_raw[which(df_raw$species=="Saltella sphondylii") ,]
+
+Samples_sspho<-unique(df_sspho$sample)
+Freq_sspho<-list()
+
+for (i in 1:length(Samples_sspho)){
+  df<-as.data.frame(Samples_sspho[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_sspho$freq[i]
+  df<-cbind(df, Freq)
+  Freq_sspho<-rbind(Freq_sspho, df)
+}
+
+Freq_sspho<-Freq_sspho %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_sspho<-merge(Freq_sspho,meta,all=TRUE)
+Freq_sspho[is.na(Freq_sspho)]<-0
+
+Freq_sspho<-Freq_sspho[order(Freq_sspho$month),]
+
+sspho_gal<-subset(Freq_sspho, Freq_sspho$source=="galloway")
+sspho_exm<-subset(Freq_sspho, Freq_sspho$source=="exmoor")
+sspho_open<-subset(Freq_sspho, Freq_sspho$habitat=="open")
+sspho_forest<-subset(Freq_sspho, Freq_sspho$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$sspho<-natur$sspho/max(natur$sspho)*max(df_sspho$freq)
+
+
+
+#img_sspho<-readJPEG("COI/Local_analysis/external_figures/Saltella_sphondylii.jpg", native=TRUE) #Include species examples?
+
+sspho_spe<-ggplot(sspho_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=sspho), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=sspho_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=sspho_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=sspho_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=sspho_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Saltella sphondylii") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_sspho,xmin="May","July",0.55,0.9)
+
+sspho_spe
+
+sspho_hab<-ggplot(sspho_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=sspho), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=sspho_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=sspho_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=sspho_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=sspho_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Saltella sphondylii") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_sspho,xmin="May","July",0.55,0.9)
+
+sspho_hab
+
+#Sepsis cynipsea code: scyni
+df_scyni<-df_raw[which(df_raw$species=="Sepsis cynipsea") ,]
+
+Samples_scyni<-unique(df_scyni$sample)
+Freq_scyni<-list()
+
+for (i in 1:length(Samples_scyni)){
+  df<-as.data.frame(Samples_scyni[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_scyni$freq[i]
+  df<-cbind(df, Freq)
+  Freq_scyni<-rbind(Freq_scyni, df)
+}
+
+Freq_scyni<-Freq_scyni %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_scyni<-merge(Freq_scyni,meta,all=TRUE)
+Freq_scyni[is.na(Freq_scyni)]<-0
+
+Freq_scyni<-Freq_scyni[order(Freq_scyni$month),]
+
+scyni_gal<-subset(Freq_scyni, Freq_scyni$source=="galloway")
+scyni_exm<-subset(Freq_scyni, Freq_scyni$source=="exmoor")
+scyni_open<-subset(Freq_scyni, Freq_scyni$habitat=="open")
+scyni_forest<-subset(Freq_scyni, Freq_scyni$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$scyni<-natur$scyni/max(natur$scyni)*max(df_scyni$freq)
+
+
+
+#img_scyni<-readJPEG("COI/Local_analysis/external_figures/Sepsis_cynipsea.jpg", native=TRUE) #Include species examples?
+
+scyni_spe<-ggplot(scyni_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=scyni), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=scyni_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=scyni_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=scyni_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=scyni_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Sepsis cynipsea") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_scyni,xmin="May","July",0.55,0.9)
+
+scyni_spe
+
+scyni_hab<-ggplot(scyni_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=scyni), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=scyni_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=scyni_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=scyni_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=scyni_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Sepsis cynipsea") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_scyni,xmin="May","July",0.55,0.9)
+
+scyni_hab
+
+#Bovicola bovis code: bbovi
+df_bbovi<-df_raw[which(df_raw$species=="Bovicola bovis") ,]
+
+Samples_bbovi<-unique(df_bbovi$sample)
+Freq_bbovi<-list()
+
+for (i in 1:length(Samples_bbovi)){
+  df<-as.data.frame(Samples_bbovi[i])
+  colnames(df)<-c("Samples")
+  Freq<-df_bbovi$freq[i]
+  df<-cbind(df, Freq)
+  Freq_bbovi<-rbind(Freq_bbovi, df)
+}
+
+Freq_bbovi<-Freq_bbovi %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+source<-dataset@samples$source
+habitat<-dataset@samples$habitat
+month<-dataset@samples$month
+Samples<-dataset@samples$name
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,habitat,month)
+Freq_bbovi<-merge(Freq_bbovi,meta,all=TRUE)
+Freq_bbovi[is.na(Freq_bbovi)]<-0
+
+Freq_bbovi<-Freq_bbovi[order(Freq_bbovi$month),]
+
+bbovi_gal<-subset(Freq_bbovi, Freq_bbovi$source=="galloway")
+bbovi_exm<-subset(Freq_bbovi, Freq_bbovi$source=="exmoor")
+bbovi_open<-subset(Freq_bbovi, Freq_bbovi$habitat=="open")
+bbovi_forest<-subset(Freq_bbovi, Freq_bbovi$habitat=="forest")
+
+#Scale observation data to maximum values
+natur$bbovi<-natur$bbovi/max(natur$bbovi)*max(df_bbovi$freq)
+
+
+
+#img_bbovi<-readJPEG("COI/Local_analysis/external_figures/Bovicola_bovis.jpg", native=TRUE) #Include species examples?
+
+bbovi_spe<-ggplot(bbovi_gal, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=bbovi), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(stat="identity",colour="darkseagreen4") +
+  #stat_summary(fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(col="darkseagreen4", fill="#B7EECC") +
+  
+  #geom_point(data=bbovi_exm, stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(data=bbovi_exm, stat="identity",colour="dodgerblue3") +
+  #stat_summary(data=bbovi_exm, fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(data=bbovi_exm, col="dodgerblue3", fill="#C2DAF0") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Bovicola bovis") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_bbovi,xmin="May","July",0.55,0.9)
+
+bbovi_spe
+
+bbovi_hab<-ggplot(bbovi_open, aes(x=factor(month, level=level_order), y=Freq, group=1)) + 
+  geom_bar(data=natur,stat="identity", aes(x=factor(month, level=level_order),y=bbovi), col="azure3",cex=1, fill="azure3") +
+  #geom_point(stat="summary", fun=mean, col="gold1",cex=2) +
+  geom_point(stat="identity",colour="gold1") +
+  #stat_summary(fun=mean, geom="line",col="gold1",cex=1) +
+  geom_smooth(col="gold1", fill="#F9F0BC") +
+  
+  #geom_point(data=bbovi_forest,stat="summary", fun=mean, col="darkgreen",cex=2) +
+  geom_point(data=bbovi_forest,stat="identity",colour="darkgreen") +
+  #stat_summary(data=bbovi_forest,fun=mean, geom="line",col="darkgreen",cex=1) +
+  geom_smooth(data=bbovi_forest, col="darkgreen", fill="#AED0A5") +
+  
+  coord_cartesian(ylim=c(0, 1)) +
+  scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle("Bovicola bovis") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=11,hjust = 0.5, face="italic"),axis.text.x = element_text(angle = 30, vjust = 1)) +
+  xlab("Month") +
+  ylab("Proportion of reads") 
+  #annotation_raster(img_bbovi,xmin="May","July",0.55,0.9)
+
+bbovi_hab
+
+          
+
+
+ggarrange(dgris_spe,cdent_spe,aster_spe,mvent_spe,clate_spe,cminu_spe,sluna_spe,
+          acons_spe,acont_spe,ahaem_spe,arufu_spe,aprod_spe,astic_spe,osimi_spe,
+          asulc_spe, labels = c("A","B","C","D","E","F","G","H","I","J","K","L","M","N","O"), ncol = 3, nrow = 5)
+ggsave("COI/Local_analysis/output/figures/species_examples_source_1.png", width=15, height=20)
+
+ggarrange(acinn_spe,olaqu_spe,ptenu_spe,sstac_spe,cster_spe,pspin_spe,mauto_spe,
+          pphal_spe,sspho_spe,scyni_spe,bbovi_spe, labels = c("A","B","C","D","E","F","G","H","I","J","K","L","M","N","O"), ncol = 3, nrow = 5)
+ggsave("COI/Local_analysis/output/figures/species_examples_source_2.png", width=15, height=20)
+
+
+ggarrange(dgris_hab,cdent_hab,aster_hab,mvent_hab,clate_hab,cminu_hab,sluna_hab,
+          acons_hab,acont_hab,ahaem_hab,arufu_hab,aprod_hab,astic_hab,osimi_hab,
+          asulc_hab, labels = c("A","B","C","D","E","F","G","H","I","J","K","L","M","N","O"), ncol = 3, nrow = 5)
+ggsave("COI/Local_analysis/output/figures/species_examples_habitat_1.png", width=15, height=20)
+
+ggarrange(acinn_hab,olaqu_hab,ptenu_hab,sstac_hab,cster_hab,pspin_hab,mauto_hab,
+          pphal_hab,sspho_hab,scyni_hab,bbovi_hab, labels = c("A","B","C","D","E","F","G","H","I","J","K","L","M","N","O"), ncol = 3, nrow = 5)
+ggsave("COI/Local_analysis/output/figures/species_examples_habitat_2.png", width=15, height=20)
+
+```
+

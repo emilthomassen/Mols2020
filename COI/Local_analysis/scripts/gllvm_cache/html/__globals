@@ -1,0 +1,14 @@
+Load data	$	$<-	%>%	::	@	[<-	==	as.data.frame	as.integer	as.matrix	c	data.frame	droplevels	factor	lapply	list	readRDS	rownames<-	season	which
+GLLVM - gaussian	~	AIC	c	gllvm	par	plot	X	y
+GLLVM - poisson	~	AIC	c	gllvm	par	plot	poisson	X	y
+GLLVM - negative binomial	~	AIC	c	gllvm	par	plot	X	y
+Test of number of LVs	~	AIC	append	c	for	gllvm	par	plot	X	y
+GLLVM - NB and interactions	~	AIC	c	gllvm	par	plot	X	y
+Identify outlier orders	>	append	cbind	colnames	colSums	for	length	ncol	which	y
+Remove outlier orders	>	nsamples	which	y
+GLLVM - without outliers - poisson	~	AIC	c	gllvm	par	plot	poisson	X	y.subs
+GLLVM - without outliers - negative binomial	~	AIC	c	gllvm	par	plot	X	y.subs
+Test number of lvs - without outliers	~	AIC	append	c	for	gllvm	par	plot	poisson	X	y.subs
+Test - including interactions - without outliers	~	AIC	c	gllvm	par	plot	poisson	X	y.subs
+GLLVM - random row effect	~	AIC	c	gllvm	par	plot	poisson	X	y.subs
+Best model	~	gllvm	poisson	summary	X	y.subs

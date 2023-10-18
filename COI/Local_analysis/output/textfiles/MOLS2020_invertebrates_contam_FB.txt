@@ -1,0 +1,10 @@
+	count	final.otu	max.sample	max.FB
+seq546764	33946	Acrostichus sp.1 (floridensis)	3444	36
+seq8473	1564584	Chamaedrilus chlorophilus	427839	976
+seq276935	29	Diptera sp.79	0	29
+seq32111	1033	Enoplognatha sp.1 (ovata/latimana)	56	711
+seq172672	77	Erigone sp.1	0	77
+seq261926	1110	Homo sapiens	4	4
+seq559757	12642	Philodina	787	1282
+seq73352	402	Picromerus sp.1 (bidens)	38	286
+seq236803	46	Tanytarsus brundini	0	46

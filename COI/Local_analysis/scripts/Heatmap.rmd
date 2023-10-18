@@ -1,0 +1,121 @@
+---
+title: "Heatmap"
+author: "Emil Ellegaard Thomassen"
+date: "`r Sys.Date()"
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+
+Code for plotting in heatmap
+
+Setup R and load packages
+
+```{r Setup and load packages}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.height = 5.5,
+	message = FALSE,
+	warning = FALSE,
+	autodep = TRUE,
+	cache = TRUE,
+	cache.lazy = FALSE,
+	tidy = TRUE,
+	tidy.opts = list(width.cutoff = 80)
+)
+rm(list=ls())
+gc()
+Dir.Base <- here::here()
+
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, cache = TRUE, cache.lazy=FALSE, tidy.opts=list(width.cutoff=80),tidy=TRUE, fig.height=5.5)
+options(digits=4, width = 90)
+
+```
+
+```{r Create input file}
+
+library(ROBITools)
+library(ROBITaxonomy)
+
+#Load data
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_final_coleoptera")
+
+#Create df and convert to pres/abs
+df<-data.frame(dataset@reads)
+colnames(df)<-dataset@motus$final.otu
+df[df>0]<-1
+
+#Load metadata
+
+meta <- data.frame("source"=dataset@samples$source,"season"=dataset@samples$season,"habitat"=dataset@samples$habitat)
+rownames(meta)<-dataset@samples$name
+
+#Create grouping for ASVs
+cat_tax<-data.frame("Type"=dataset@motus$type)
+rownames(cat_tax)<-dataset@motus$final.otu
+
+```
+
+
+
+```{r Heatmap}
+
+
+#Load libaries
+library(pheatmap)
+library(dplyr)
+library(RColorBrewer)
+library(MetBrewer)
+
+#Read in data
+df2<-df
+
+cat_df<-meta
+
+cat_tax<-cat_tax
+
+cat_df$source<-factor(cat_df$source, levels=c("galloway","Galloway","exmoor","Exmoor"))
+cat_df$season<-factor(cat_df$season, levels=c("spring","Spring","summer","Summer","autumn","Autumn","winter","Winter"))
+cat_df$habitat<-factor(cat_df$habitat, levels=c("open","Open","forest","Forest"))
+
+cat_df[cat_df=="galloway"]<-"Galloway"
+cat_df[cat_df=="exmoor"]<-"Exmoor"
+cat_df[cat_df=="open"]<-"Open"
+cat_df[cat_df=="forest"]<-"Forest"
+cat_df[cat_df=="spring"]<-"Spring"
+cat_df[cat_df=="summer"]<-"Summer"
+cat_df[cat_df=="autumn"]<-"Autumn"
+cat_df[cat_df=="winter"]<-"Winter"
+
+cat_df$source<-factor(cat_df$source, levels=c("Galloway","Exmoor"))
+cat_df$season<-factor(cat_df$season, levels=c("Spring","Summer","Autumn","Winter"))
+cat_df$habitat<-factor(cat_df$habitat, levels=c("Open","Forest"))
+
+colnames(cat_df)<-c("Source","Season","Habitat")
+
+
+cat_tax$Type<-factor(cat_tax$Type, levels=c("coleoptera A","A","coleoptera B","B", "coleoptera C", "C"))
+cat_tax[cat_tax=="coleoptera A"]<-"A"
+cat_tax[cat_tax=="coleoptera B"]<-"B"
+cat_tax[cat_tax=="coleoptera C"]<-"C"
+cat_tax$Type<-factor(cat_tax$Type, levels=c("A","B","C"))
+
+
+myColors = list(
+  Type = c(A = "#95612e", B = "#e54235", C = "#6f99a2"),
+  Source = c(Galloway = "darkorange", Exmoor = "darkred"),
+  Season = c(Spring = "#b1f5ba", Summer = "#d5c463", Autumn = "#956009", Winter = "#e5e2dd"),
+  Habitat = c(Open = "#f7eb5f", Forest = "#766553")
+)
+
+dev.off()
+pdf(file = "COI/Local_analysis/output/plots/Heatmap_dung-ass_coleoptera.pdf",   # The directory you want to save the file in
+    width = 20, # The width of the plot in inches
+    height = 30)
+
+pheatmap(df2,color=colorRampPalette(brewer.pal(n = 3, name ="Blues"))(2), annotation_row = cat_df[1:3], annotation_col = cat_tax[1],annotation_colors = myColors, cluster_cols=T,cluster_rows=T, fontsize_col=8,cellheight=8,fontsize_row=8,legend_breaks=c(0,1))
+dev.off()
+
+```
+

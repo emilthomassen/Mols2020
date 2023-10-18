@@ -1,0 +1,1832 @@
+---
+title: "Analysis - Nematodes - COI"
+author: "Emil Ellegaard Thomassen"
+date: "`r Sys.Date()"
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+
+The following script performs plots of species richness, read distributions and community compositions of the nematode reads in the COI data.
+
+# Setup
+
+Setup R and load packages
+
+```{r Setup and load packages}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.height = 5.5,
+	message = FALSE,
+	warning = FALSE,
+	autodep = TRUE,
+	cache = TRUE,
+	cache.lazy = FALSE,
+	tidy = TRUE,
+	tidy.opts = list(width.cutoff = 80)
+)
+rm(list=ls())
+gc()
+Dir.Base <- here::here()
+
+
+
+# Installing packages as needed
+install.load.package <- function(x) {
+  if (!require(x, character.only = TRUE))
+    install.packages(x, repos='http://cran.us.r-project.org', dependencies = TRUE)
+  require(x, character.only = TRUE)
+}
+package_vec <- c("kableExtra", "tidyverse","png", "jpeg", "sp", "ncf","rgdal","MASS", "raster", "ggmap", "ggplot2", "BiodiversityR", "pheatmap", "knitr", "printr", "ade4", "vegan", "ROBITools", "ROBITaxonomy", "dplyr", "tidyr", "plotrix")
+sapply(package_vec, install.load.package)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, cache = TRUE, cache.lazy=FALSE, tidy.opts=list(width.cutoff=80),tidy=TRUE, fig.height=5.5)
+options(digits=4, width = 90)
+
+```
+
+# Only nematodes
+
+
+```{r Extract nematodes}
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_final")
+
+
+
+m=dataset
+reads = m@reads
+samples = m@samples
+motus = m@motus
+
+##Extract all nematode hits with over 95% similarity
+dung.idx<-which(m@motus$phylum_name=="Nematoda"& m@motus$`best_identity:ncbi`>95)
+
+motus<-motus[dung.idx,]
+reads<-reads[,dung.idx]
+idx.include<-which(rowSums(reads)>0)
+reads<-reads[rowSums(reads)>0,]
+samples<-samples[idx.include,]
+
+samples<-samples[,-1]
+samples<-samples[,-c(26:29)]
+
+
+m@reads <- reads
+m@samples <- samples
+m@motus <- motus
+
+dataset = m
+
+total_nematodes<-sum(reads)
+
+par(mfrow=c(1,2))
+
+mean_sample<-mean(rowSums(dataset@reads[dataset@samples$samples.DungSamples,]))
+hist(rowSums(dataset@reads[dataset@samples$samples.DungSamples,]), #CHANGE Stream_water
+     breaks=50,xlab="Reads",main="Read counts")
+sem_sample<-std.error(rowSums(dataset@reads[dataset@samples$samples.DungSamples,]))
+
+hist(log(rowSums(dataset@reads[dataset@samples$samples.DungSamples,])), #CHANGE Stream_water
+     breaks=50,xlab="Reads",main="Read counts")
+
+
+saveRDS(dataset, file="COI/Local_analysis/output/RDS_files/dataset_final_nematodes")
+
+```
+
+```{r Generating input df and create genera list with reads}
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_final_nematodes")
+
+
+#Generating input df
+
+
+#Create temporary df with read counts in each sample from metabarcoding file
+df_tmp<-data.frame(dataset@reads)
+colnames(df_tmp)<-dataset@motus$final.otu
+
+
+
+#Create temporary df to build file with the columns (sample, species, count, totalreads, freq)
+df<-data.frame("sample"=c(), "species"=c(),"count"=c())
+df<-rbind(df, c(1,1,1))
+colnames(df)<-c("sample", "species", "count")
+
+
+#Add row to the dataframe for each sample/species combination
+for (i in 1:nrow(df_tmp)) {
+  for (j in 1:ncol(df_tmp)) {
+   if (df_tmp[i,j]!=0) 
+     {df<-rbind(df, c(row.names(df_tmp)[i],colnames(df_tmp)[j],df_tmp[i,j]))
+     } 
+  }
+}
+
+#Subtract the first row which was only used to keep correct format
+df<-df[-1,]
+
+#Change type of columns (sample=factor, count=numeric)
+df2<-data.frame("sample"=as.factor(df$sample), "species"=df$species, "count"=as.numeric(df$count))
+
+#Calculate total reads in each sample
+#Create df with unique sample names and totalreads vector
+totalreads1<-data.frame("sample"=as.factor(unique(df2$sample)))
+totalreads<-c()
+
+#Add value for total reads in each sample to the sample_count vector
+for (sample in unique(df2$sample)) {
+  x1<-which(df2$sample==sample)
+  x2<-sum(df2$count[x1[1]:x1[length(x1)]])
+  totalreads<-append(totalreads, rep(x2, each=length(x1))) #Each total count added as many times as each sample in represented in df2
+}
+
+#Add totalreads to df2
+df2<-cbind(df2,totalreads)
+
+
+#Calculate frequency of each species in the sample
+freq<-c()
+
+for (i in 1:nrow(df2)) {
+  x<-df2$count[i]/df2$totalreads[i]
+  freq<-append(freq,x)
+  
+  
+}
+
+
+#Add to df2
+df2<-cbind(df2, freq)
+
+#Save as RDS
+
+saveRDS(df2, file="COI/Local_analysis/output/RDS_files/df_for_plots_and_analysis_nematodes")
+
+
+
+#Generate df with ID and reads
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_final_nematodes")
+
+reads<-as.data.frame(dataset@reads)
+
+reads<-t(reads)
+otu<-as.character(dataset@motus$final.otu)
+kingdom<-as.character(dataset@motus$kingdom_name)
+phylum<-as.character(dataset@motus$phylum_name)
+class<-as.character(dataset@motus$class_name)
+order<-as.character(dataset@motus$order_name)
+family<-as.character(dataset@motus$family_name)
+genus<-as.character(dataset@motus$genus_name)
+species<-as.character(dataset@motus$species_name)
+dung<-as.character(dataset@motus$dung.associated)
+type<-as.character(dataset@motus$type)
+row.names(reads)<-otu
+
+total<-rowSums(reads)
+
+df<-as.data.frame(cbind(reads,total))
+df<-as.data.frame(cbind(df,kingdom,phylum,class,order,family,genus))
+df<-df[order(df$total, decreasing=TRUE),]
+
+#Save as RDS
+
+saveRDS(df, file="COI/Local_analysis/output/RDS_files/df_species_reads_nematodes")
+
+#Export list
+write.csv2(df,"COI/Local_analysis/output/tables/MOLS2020_COI_nematode_ASVs_with_reads.csv", row.names=TRUE)
+
+
+
+#Aggregate on genera
+df_genera<-aggregate(. ~ genus, data=df[,c(1:140)], FUN=sum)
+
+
+saveRDS(df_genera, file="COI/Local_analysis/output/RDS_files/df_genera_reads_nematodes")
+
+#Aggregate on family
+df_family<-aggregate(. ~ family, data=df[,c(1:140)], FUN=sum)
+
+
+saveRDS(df_family, file="COI/Local_analysis/output/RDS_files/df_family_reads_nematodes")
+
+
+
+```
+
+```{r Richness plot and stacked barplot ASVs/species}
+
+#Plotting the richness of sampling time as well as stacked barplot of all sampling times
+
+
+#Loading libraries
+library(tidyverse)
+library(ROBITools)
+library(ROBITaxonomy)
+library(ggpubr)
+library(dplyr)
+library(ggplot2)
+library(ggsci)
+library(RColorBrewer)
+
+#Set level order for plots
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+#Load data
+df_raw <- readRDS("COI/Local_analysis/output/RDS_files/df_for_plots_and_analysis_nematodes")
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_final_nematodes")
+
+
+
+#Remove unidentified ASVs from list for richness calculations - we need to decide at which level we will evaluate nematode richness
+
+
+
+m=dataset
+reads = m@reads
+samples = m@samples
+motus = m@motus
+
+#Extract all identified hits
+dung.idx<-which(grepl("sp.", m@motus$final.otu)!=TRUE)
+
+motus<-motus[dung.idx,]
+reads<-reads[,dung.idx]
+idx.include<-which(rowSums(reads)>0)
+reads<-reads[rowSums(reads)>0,]
+
+samples<-samples[,-1]
+samples<-samples[,-c(26:29)]
+
+
+m@reads <- reads
+m@samples <- samples
+m@motus <- motus
+
+dataset = m
+
+
+
+#idx_remove<-c()
+#idx_keep<-c()
+#for (i in 1:nrow(df_raw)) {
+#  ifelse(grepl("sp.",df_raw$species[i], fixed=TRUE), #ifelse(grepl("\\(",df_raw$species[i]),idx_keep<-append(idx_keep,i),idx_remove<-append(idx_remove,i)),idx_keep<-append(idx_keep,i))
+#}
+
+
+#df_raw2<-df_raw[-idx_remove,]
+
+#PROBLEM - when sequneces with no id is excluded, the vectors in dataset does not match in length! Solution: try to create new dataset, where they are excluded
+
+
+
+
+Samples<-unique(df_raw$sample)
+Richness<-list()
+
+for (i in 1:length(Samples)){
+  df<-as.data.frame(Samples[i])
+  colnames(df)<-c("Samples")
+  Count<-sum(df_raw$count[df_raw$sample==Samples[i]] !=0)
+  df<-cbind(df, Count)
+  Richness<-rbind(Richness, df)
+}
+
+Richness<-Richness %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+
+
+
+#Mean richness pr. month - Galloway
+
+Richness<-cbind(Richness, "source"=dataset@samples$source, "month"=dataset@samples$month, "habitat"=dataset@samples$habitat, "lat"=dataset@samples$lat, "lon"=dataset@samples$lon)
+
+Richness<-Richness[order(Richness$month),]
+
+saveRDS(Richness, file="COI/Local_analysis/output/RDS_files/Richness_df_nematodes")
+
+Richness_gal<-subset(Richness, Richness$source=="galloway")
+Richness_exm<-subset(Richness, Richness$source=="exmoor")
+
+#Calculate std error
+
+Gal_agg<-aggregate( . ~ month, data=Richness_gal, std.error)
+Exm_agg<-aggregate( . ~ month, data=Richness_exm, std.error)
+
+
+
+se_gal<-c(rep(Gal_agg$Count[1], each=7),
+          rep(Gal_agg$Count[2], each=9),
+          rep(Gal_agg$Count[3], each=10),
+          rep(Gal_agg$Count[4], each=8),
+          rep(Gal_agg$Count[5], each=6),
+          rep(Gal_agg$Count[6], each=10),
+          rep(Gal_agg$Count[7], each=9),
+          rep(Gal_agg$Count[8], each=9),
+          rep(Gal_agg$Count[9], each=5),
+          rep(Gal_agg$Count[10], each=9),
+          rep(Gal_agg$Count[11], each=10),
+          rep(Gal_agg$Count[12], each=10))
+
+se_exm<-c(rep(Exm_agg$Count[1], each=11),
+          rep(Exm_agg$Count[2], each=10),
+          rep(Exm_agg$Count[3], each=10),
+          rep(Exm_agg$Count[4], each=10),
+          rep(Exm_agg$Count[5], each=10),
+          rep(Exm_agg$Count[6], each=10),
+          rep(Exm_agg$Count[7], each=11),
+          rep(Exm_agg$Count[8], each=10),
+          rep(Exm_agg$Count[9], each=15),
+          rep(Exm_agg$Count[10], each=10),
+          rep(Exm_agg$Count[11], each=10),
+          rep(Exm_agg$Count[12], each=10))
+
+Richness_gal<-cbind(Richness_gal, se_gal)
+Richness_exm<-cbind(Richness_exm, se_exm)
+
+Richness_gal[is.na(Richness_gal)]=0
+Richness_exm[is.na(Richness_exm)]=0
+
+
+
+#Set level order for plots
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+
+#Plotting species richness over time
+#Galloway
+Species_Richness_gal<-ggplot(Richness_gal, aes(x=factor(month, level=level_order), y=Count, group=1)) +
+  geom_point(stat="summary", fun=mean, col="darkorange") +
+  geom_errorbar(stat="summary", aes(x=factor(month, level=level_order), ymin=Count-se_gal, ymax=Count+se_gal), width=0.5, col="darkorange") +
+  #geom_errorbar(stat="summary", data=Richness_gal$Count[which(Richness_gal$month!="December")], aes(x=factor(Richness_gal$month[-which(Richness_gal$month=="December")], level=level_order), ymin=Richness_gal$Count-0.5, ymax=Richness_gal$Count+0.5), width=0.5, fun="mean_se") +
+  scale_y_continuous(breaks=c(seq(0, 24, by = 2))) +
+  stat_summary(fun=mean, geom="line", col="darkorange") +
+  ggtitle("Species richness in cowpats") +
+  theme_bw() +
+  coord_cartesian(ylim=c(1,24)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(hjust = 0.5)) +
+  xlab("Month") +
+  ylab("Number of nematode species")
+
+Species_Richness_gal
+
+#Set level order for plots
+#level_order <- c("January","February","April", "June", "August","December") 
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+#Exmoor
+Species_Richness_exm<-ggplot(Richness_exm, aes(x=factor(month, level=level_order), y=Count, group=1)) + 
+  geom_point(stat="summary", fun=mean, col="darkred") +
+  geom_errorbar(stat="summary", aes(x=factor(month, level=level_order), ymin=Count-se_exm, ymax=Count+se_exm), width=0.5, col="darkred") +
+  #geom_point(stat="identity") +
+  scale_y_continuous(breaks=c(seq(0, 36, by = 2))) +
+  stat_summary(fun=mean, geom="line", col="darkred") +
+  ggtitle("Species richness in horse dung") +
+  theme_bw() +
+  coord_cartesian(ylim=c(1,36)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(hjust = 0.5)) +
+  xlab("Month") +
+  ylab("Number of nematode species")
+
+Species_Richness_exm
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+dummy<-data.frame("Count"=c(rep(0,each=12)),"month"=level_order)
+
+#Both
+Species_Richness<-ggplot(dummy, aes(x=factor(month, level=level_order), y=Count, group=1)) + 
+  geom_vline(xintercept="April",colour="white", linetype=2)+
+  geom_vline(xintercept=4.5,colour="darkgrey", linetype=2)+
+  geom_vline(xintercept=8.5,colour="darkgrey", linetype=2)+
+  geom_point(data=Richness_gal, stat="summary", fun=mean, colour="darkseagreen4") +
+  geom_errorbar(data=Richness_gal, stat="summary", aes(x=factor(month, level=level_order), ymin=Count-se_gal, ymax=Count+se_gal), width=0.5, colour="darkseagreen4") +
+  geom_point(data=Richness_exm, stat="summary", fun=mean, colour="dodgerblue3") +
+  geom_errorbar(data=Richness_exm, stat="summary", aes(x=factor(month, level=level_order), ymin=Count-se_exm, ymax=Count+se_exm), width=0.5, colour="dodgerblue3") +
+  scale_y_continuous(breaks=c(seq(0,20, by=2))) +
+  stat_summary(data=Richness_gal, fun=mean, geom="line", colour="darkseagreen4") +
+  stat_summary(data=Richness_exm, fun=mean, geom="line", colour="dodgerblue3") +
+  #ggtitle("Species richness - dung associated coleopterans") +
+  annotate("text", x=2.5, y=19, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=19, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=19, label="Late season", cex=3) +
+  annotate("text", x=2.5, y=18, label=" ( *** ) ", cex=3) +
+  annotate("text", x=6.5, y=18, label=" ( *** )", cex=3) +
+  annotate("text", x=10.5, y=18, label=" ( *** )", cex=3) +
+  theme_bw() +
+  #coord_cartesian(ylim=c(1,20)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=14, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75, size=14),axis.text.y = element_text(size=12), axis.title.y = element_text(size=14)) +
+  xlab("Month") +
+  ylab("Species richness")
+
+Species_Richness
+
+ggarrange(Species_Richness, ncol = 1, nrow = 1)
+ggsave("COI/Local_analysis/output/plots/SpeciesRichnessBothOneFig_nematodes.pdf", width=10, height=6)
+
+
+saveRDS(Species_Richness, file="COI/Local_analysis/output/RDS_files/Species_Richness_nematodes")
+
+ggarrange(Species_Richness_gal, Species_Richness_exm, labels = c("A", "B"), ncol = 1, nrow = 2)
+ggsave("COI/Local_analysis/output/plots/SpeciesRichnessBoth_nematodes.pdf", width=14, height=8)
+
+RichnessBoth<-ggarrange(Species_Richness_gal, Species_Richness_exm, labels = c("A", "B"), ncol = 1, nrow = 2)
+
+saveRDS(RichnessBoth, file="COI/Local_analysis/output/RDS_files/RichnessBoth_nematodes")
+
+
+#Find most abundant species across all samples
+
+samples.data = read.table("COI/MetaBarFlow/output/Metadata_MOLS2020_invertebrates_corrected_source.txt",
+                        header=TRUE,row.names=1,na.strings="NA")
+
+
+
+source_vec<-c()
+month_vec<-c()
+
+for (i in 1:nrow(df_raw)) {
+  sample<-as.character(df_raw$sample[i])
+  idx<-which(row.names(samples.data)==sample)
+  source_vec<-append(source_vec, as.character(samples.data$source[idx]))
+  month_vec<-append(month_vec, as.character(samples.data$month[idx]))
+}
+
+source<-as.factor(source_vec)
+month<-as.factor(month_vec)
+
+df_raw<-cbind(df_raw, source, month)
+
+df_gal<-subset(df_raw, df_raw$source=="galloway")
+df_exm<-subset(df_raw, df_raw$source=="exmoor")
+
+#Galloway
+Species<-unique(df_gal$species)
+abun<-list()
+
+for (i in 1:length(Species)){
+  df<-as.data.frame(Species[i])
+  colnames(df)<-c("Species")
+  Count<-sum(df_gal$count[df_gal$species==Species[i]])
+  df<-cbind(df, Count)
+  abun<-rbind(abun, df)
+}
+
+abundance<-abun[order(abun$Count),c(1,2)]
+
+#Create vector of 20 most abundant species/ASVs
+high_20_gal<-as.character(abundance$Species[(nrow(abundance)-14):(nrow(abundance))])
+
+#Add "Other" as level in the df_raw$species vector
+levels(df_gal$species) <- c(levels(df_gal$species),"Other")
+
+#Check if species is in the 20 most abundant - if not, change species to "Other"
+for (i in 1:nrow(df_gal)) {
+  x<-as.character(df_gal$species[i])
+  vec<-grepl(as.character(x), high_20_gal, fixed=TRUE)
+  if (sum(vec)==0) {df_gal$species[i]="Other"     }
+}
+
+
+#Rename genus column to Genus
+df_gal<-df_gal %>%
+  dplyr::rename(Species=species)
+
+#Change order of sampling time
+df_gal<-df_gal %>%
+  dplyr::mutate(sample=factor(sample, levels=c(  "JAN1","JAN2","JAN3","JAN4","JAN5","JAN6","JAN7","JAN8","JAN9","JAN10","JAN11","JAN12","JAN13","JAN14","JAN15","JAN16","JAN17","JAN18","JAN19","JAN20","FEB1","FEB2","FEB3","FEB4","FEB5","FEB6","FEB7","FEB8","FEB9","FEB10","FEB11","FEB12","FEB13","FEB14","FEB15","FEB16","FEB17","FEB18","FEB19","FEB20","MAR1","MAR2","MAR3","MAR4","MAR5","MAR6","MAR7","MAR8","MAR9","MAR10","MAR11","MAR12","MAR13","MAR14","MAR15","MAR16","MAR17","MAR18","MAR19","MAR20","APR1","APR2","APR3","APR4","APR5","APR6","APR7","APR8","APR9","APR10","APR11","APR12","APR13","APR14","APR15","APR16","APR17","APR18","APR19","APR20","MAY1","MAY2","MAY3","MAY4","MAY5","MAY6","MAY7","MAY8","MAY9","MAY10","MAY11","MAY12","MAY13","MAY14","MAY15","MAY16","MAY17","MAY18","MAY19","MAY20","JUN1","JUN2","JUN3","JUN4","JUN5","JUN6","JUN7","JUN8","JUN9","JUN10","JUN11","JUN12","JUN13","JUN14","JUN15","JUN16","JUN17","JUN18","JUN19","JUN20","JUL1","JUL2","JUL3","JUL4","JUL5","JUL6","JUL7","JUL8","JUL9","JUL10","JUL11","JUL12","JUL13","JUL14","JUL15","JUL16","JUL17","JUL18","JUL19","JUL20","AUG1","AUG2","AUG3","AUG4","AUG5","AUG6","AUG7","AUG8","AUG9","AUG10","AUG11","AUG12","AUG13","AUG14","AUG15","AUG16","AUG17","AUG18","AUG19","AUG20","SEP1","SEP2","SEP3","SEP4","SEP5","SEP6","SEP7","SEP8","SEP9","SEP10","SEP11","SEP12","SEP13","SEP14","SEP15","SEP16","SEP17","SEP18","SEP19","SEP20","OCT1","OCT2","OCT3","OCT4","OCT5","OCT6","OCT7","OCT8","OCT9","OCT10","OCT11","OCT12","OCT13","OCT14","OCT15","OCT16","OCT17","OCT18","OCT19","OCT20","NOV1","NOV2","NOV3","NOV4","NOV5","NOV6","NOV7","NOV8","NOV9","NOV10","NOV11","NOV12","NOV13","NOV14","NOV15","NOV16","NOV17","NOV18","NOV19","NOV20","DEC1","DEC2","DEC3","DEC4","DEC5","DEC6","DEC7","DEC8","DEC9","DEC10","DEC11","DEC12","DEC13","DEC14","DEC15","DEC16","DEC17","DEC18","DEC19","DEC20"
+)))
+
+
+levels<-append(sort(high_20_gal),"Other")
+
+
+df_gal<-df_gal %>%
+  dplyr::mutate(Species=factor(Species, levels=levels))
+
+#Adding 21 color option
+nb.cols <- 26
+#mycolorsbase <- colorRampPalette(brewer.pal(12, "Paired"))(nb.cols)
+mycolorsbase <-c("darkolivegreen3","chocolate","brown2","darkolivegreen1","darkolivegreen","burlywood3","darkseagreen1","cornflowerblue","chocolate1","yellow","darkorange4","burlywood1","brown","darkred","cyan","burlywood2","chartreuse3","cadetblue4","goldenrod2","lightpink1","hotpink2","palegreen","darkblue","darkmagenta","yellowgreen","magenta2","seagreen","mintcream","coral1","#aaffc3")
+mycolors<-mycolorsbase[c(1,3:7,9,12,15:21)]
+mycolors<-append(mycolors,"black")
+
+#Plotting Galloway
+stacked_gal<-ggplot(df_gal, aes(fill=Species, y=freq, x=sample)) +
+  guides(fill=guide_legend(ncol=1)) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_manual(values = mycolors) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),axis.text.x = element_text(angle = 90, vjust=0.5,hjust = 0.5),legend.text = element_text(colour="black", size = 10, face = "italic")) +
+  xlab("Sample") +
+  ylab("Proportion of reads")
+
+
+
+#Exmoor
+Species<-unique(df_exm$species)
+abun<-list()
+
+for (i in 1:length(Species)){
+  df<-as.data.frame(Species[i])
+  colnames(df)<-c("Species")
+  Count<-sum(df_exm$count[df_exm$species==Species[i]])
+  df<-cbind(df, Count)
+  abun<-rbind(abun, df)
+}
+
+abundance<-abun[order(abun$Count),c(1,2)]
+
+#Create vector of 20 most abundant species/ASVs
+high_20_exm<-as.character(abundance$Species[(nrow(abundance)-14):(nrow(abundance))])
+
+#Add "Other" as level in the df_raw$species vector
+levels(df_exm$species) <- c(levels(df_exm$species),"Other")
+
+#Check if species is in the 20 most abundant - if not, change species to "Other"
+for (i in 1:nrow(df_exm)) {
+  x<-as.character(df_exm$species[i])
+  vec<-grepl(as.character(x), high_20_exm, fixed=TRUE)
+  if (sum(vec)==0) {df_exm$species[i]="Other"     }
+}
+
+## Problem with sp.6 etc. - is not replaced, as they are in the string sp.62 etc.
+
+#problematic<-c("Strongylida sp.3","Strongylida sp.6")
+
+#for (i in 1:nrow(df_exm)) {
+#  x<-as.character(df_exm$species[i])
+#  vec<-grepl(as.character(x), problematic, fixed=TRUE)
+#  if (sum(vec)!=0) {df_exm$species[i]="Other"     }
+#}
+
+
+#Rename genus column to Genus
+df_exm<-df_exm %>%
+  dplyr::rename(Species=species)
+
+#Change order of sampling time
+df_exm<-df_exm %>%
+  dplyr::mutate(sample=factor(sample, levels=c(  "JAN1","JAN2","JAN3","JAN4","JAN5","JAN6","JAN7","JAN8","JAN9","JAN10","JAN11","JAN12","JAN13","JAN14","JAN15","JAN16","JAN17","JAN18","JAN19","JAN20","FEB1","FEB2","FEB3","FEB4","FEB5","FEB6","FEB7","FEB8","FEB9","FEB10","FEB11","FEB12","FEB13","FEB14","FEB15","FEB16","FEB17","FEB18","FEB19","FEB20","MAR1","MAR2","MAR3","MAR4","MAR5","MAR6","MAR7","MAR8","MAR9","MAR10","MAR11","MAR12","MAR13","MAR14","MAR15","MAR16","MAR17","MAR18","MAR19","MAR20","APR1","APR2","APR3","APR4","APR5","APR6","APR7","APR8","APR9","APR10","APR11","APR12","APR13","APR14","APR15","APR16","APR17","APR18","APR19","APR20","MAY1","MAY2","MAY3","MAY4","MAY5","MAY6","MAY7","MAY8","MAY9","MAY10","MAY11","MAY12","MAY13","MAY14","MAY15","MAY16","MAY17","MAY18","MAY19","MAY20","JUN1","JUN2","JUN3","JUN4","JUN5","JUN6","JUN7","JUN8","JUN9","JUN10","JUN11","JUN12","JUN13","JUN14","JUN15","JUN16","JUN17","JUN18","JUN19","JUN20","JUL1","JUL2","JUL3","JUL4","JUL5","JUL6","JUL7","JUL8","JUL9","JUL10","JUL11","JUL12","JUL13","JUL14","JUL15","JUL16","JUL17","JUL18","JUL19","JUL20","AUG1","AUG2","AUG3","AUG4","AUG5","AUG6","AUG7","AUG8","AUG9","AUG10","AUG11","AUG12","AUG13","AUG14","AUG15","AUG16","AUG17","AUG18","AUG19","AUG20","SEP1","SEP2","SEP3","SEP4","SEP5","SEP6","SEP7","SEP8","SEP9","SEP10","SEP11","SEP12","SEP13","SEP14","SEP15","SEP16","SEP17","SEP18","SEP19","SEP20","OCT1","OCT2","OCT3","OCT4","OCT5","OCT6","OCT7","OCT8","OCT9","OCT10","OCT11","OCT12","OCT13","OCT14","OCT15","OCT16","OCT17","OCT18","OCT19","OCT20","NOV1","NOV2","NOV3","NOV4","NOV5","NOV6","NOV7","NOV8","NOV9","NOV10","NOV11","NOV12","NOV13","NOV14","NOV15","NOV16","NOV17","NOV18","NOV19","NOV20","DEC1","DEC2","DEC3","DEC4","DEC5","DEC6","DEC7","DEC8","DEC9","DEC10","DEC11","DEC12","DEC13","DEC14","DEC15","DEC16","DEC17","DEC18","DEC19","DEC20"
+)))
+
+levels<-append(sort(high_20_exm),"Other")
+
+
+df_exm<-df_exm %>%
+  dplyr::mutate(Species=factor(Species, levels=levels))
+
+
+mycolors<-mycolorsbase[c(2,4:14,18,22:23)]
+mycolors<-append(mycolors,"black")
+
+#Plotting Exmoor
+stacked_exm<-ggplot(df_exm, aes(fill=Species, y=freq, x=sample)) +
+  guides(fill=guide_legend(ncol=1)) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_manual(values = mycolors) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),axis.text.x = element_text(angle = 90, vjust=0.5,hjust = 0.5),legend.text = element_text(colour="black", size = 10, face = "italic")) +
+  xlab("Sample") +
+  ylab("Proportion of reads")
+
+
+#Export high-20 table
+write.csv(cbind(sort(high_20_exm),sort(high_20_gal)),file="COI/Local_analysis/output/tables/high-15_dung_nematodes.csv")
+
+ggarrange(stacked_gal,stacked_exm, labels = c("A", "B"), ncol = 1, nrow = 2)
+ggsave("COI/Local_analysis/output/plots/StackedBothSpecies_nematodes.pdf", width=14, height=8)
+
+
+
+StackedBoth<-ggarrange(stacked_gal,stacked_exm, labels = c("E", "F"), ncol = 1, nrow = 2)
+
+saveRDS(StackedBoth, file="COI/Local_analysis/output/RDS_files/StackedBothSpecies_nematodes")
+
+#ggsave("Stacked_barplot_all_time.pdf",width=15,height=8.5)
+
+#Aggregate samples by month
+
+gal_month<-aggregate(df_gal, list(Month = df_gal$month, Species = df_gal$Species), FUN=mean)
+exm_month<-aggregate(df_exm, list(Month = df_exm$month, Species = df_exm$Species), FUN=mean)
+
+#Remove redundant columns
+gal_month<-gal_month[,-c(3:4,6:9)]
+exm_month<-exm_month[,-c(3:4,6:9)]
+
+gal_month_20<-gal_month
+exm_month_20<-exm_month
+
+#Calculate total reads in each month
+
+jan<-c()
+feb<-c()
+mar<-c()
+apr<-c()
+may<-c()
+jun<-c()
+jul<-c()
+aug<-c()
+sep<-c()
+oct<-c()
+nov<-c()
+dec<-c()
+for (i in 1:nrow(gal_month)) {
+  if (gal_month$Month[i]=="January") {jan<-append(jan, gal_month$count[i])}
+  if (gal_month$Month[i]=="February") {feb<-append(feb, gal_month$count[i])}
+  if (gal_month$Month[i]=="March") {mar<-append(mar, gal_month$count[i])}
+  if (gal_month$Month[i]=="April") {apr<-append(apr, gal_month$count[i])}
+  if (gal_month$Month[i]=="May") {may<-append(may, gal_month$count[i])}
+  if (gal_month$Month[i]=="June") {jun<-append(jun, gal_month$count[i])}
+  if (gal_month$Month[i]=="July") {jul<-append(jul, gal_month$count[i])}
+  if (gal_month$Month[i]=="August") {aug<-append(aug, gal_month$count[i])}
+  if (gal_month$Month[i]=="September") {sep<-append(sep, gal_month$count[i])}
+  if (gal_month$Month[i]=="October") {oct<-append(oct, gal_month$count[i])}
+  if (gal_month$Month[i]=="November") {nov<-append(nov, gal_month$count[i])}
+  if (gal_month$Month[i]=="December") {dec<-append(dec, gal_month$count[i])}
+}
+total_each_gal<-sapply(list(jan,feb,mar,apr,may,jun,jul,aug,sep,oct,nov,dec), FUN=sum)
+
+totalreads<-c(rep(1, each=nrow(gal_month)))
+
+gal_month<-cbind(gal_month, totalreads)
+
+for (i in 1:nrow(gal_month)) {
+  if (gal_month$Month[i]=="January") {gal_month$totalreads[i]=total_each_gal[1]}
+  if (gal_month$Month[i]=="February") {gal_month$totalreads[i]=total_each_gal[2]}
+  if (gal_month$Month[i]=="March") {gal_month$totalreads[i]=total_each_gal[3]}
+  if (gal_month$Month[i]=="April") {gal_month$totalreads[i]=total_each_gal[4]}
+  if (gal_month$Month[i]=="May") {gal_month$totalreads[i]=total_each_gal[5]}
+  if (gal_month$Month[i]=="June") {gal_month$totalreads[i]=total_each_gal[6]}
+  if (gal_month$Month[i]=="July") {gal_month$totalreads[i]=total_each_gal[7]}
+  if (gal_month$Month[i]=="August") {gal_month$totalreads[i]=total_each_gal[8]}
+  if (gal_month$Month[i]=="September") {gal_month$totalreads[i]=total_each_gal[9]}
+  if (gal_month$Month[i]=="October") {gal_month$totalreads[i]=total_each_gal[10]}
+  if (gal_month$Month[i]=="November") {gal_month$totalreads[i]=total_each_gal[11]}
+  if (gal_month$Month[i]=="December") {gal_month$totalreads[i]=total_each_gal[12]}
+  }
+
+freq<-c()
+
+for (i in 1:nrow(gal_month)) {
+  x<-gal_month$count[i]/gal_month$totalreads[i]
+  freq<-append(freq,x)
+}
+
+gal_month<-cbind(gal_month, freq)
+
+#And for exmoor ponies
+
+
+jan<-c()
+feb<-c()
+mar<-c()
+apr<-c()
+may<-c()
+jun<-c()
+jul<-c()
+aug<-c()
+sep<-c()
+oct<-c()
+nov<-c()
+dec<-c()
+
+for (i in 1:nrow(exm_month)) {
+  if (exm_month$Month[i]=="January") {jan<-append(jan, exm_month$count[i])}
+  if (exm_month$Month[i]=="February") {feb<-append(feb, exm_month$count[i])}
+  if (exm_month$Month[i]=="March") {mar<-append(mar, exm_month$count[i])}
+  if (exm_month$Month[i]=="April") {apr<-append(apr, exm_month$count[i])}
+  if (exm_month$Month[i]=="May") {may<-append(may, exm_month$count[i])}
+  if (exm_month$Month[i]=="June") {jun<-append(jun, exm_month$count[i])}
+  if (exm_month$Month[i]=="July") {jul<-append(jul, exm_month$count[i])}
+  if (exm_month$Month[i]=="August") {aug<-append(aug, exm_month$count[i])}
+  if (exm_month$Month[i]=="September") {sep<-append(sep, exm_month$count[i])}
+  if (exm_month$Month[i]=="October") {oct<-append(oct, exm_month$count[i])}
+  if (exm_month$Month[i]=="November") {nov<-append(nov, exm_month$count[i])}
+  if (exm_month$Month[i]=="December") {dec<-append(dec, exm_month$count[i])}
+}
+total_each_exm<-sapply(list(jan,feb,mar,apr,may,jun,jul,aug,sep,oct,nov,dec), FUN=sum)
+
+totalreads<-c(rep(1, each=nrow(exm_month)))
+
+exm_month<-cbind(exm_month, totalreads)
+
+for (i in 1:nrow(exm_month)) {
+  if (exm_month$Month[i]=="January") {exm_month$totalreads[i]=total_each_exm[1]}
+  if (exm_month$Month[i]=="February") {exm_month$totalreads[i]=total_each_exm[2]}
+  if (exm_month$Month[i]=="March") {exm_month$totalreads[i]=total_each_exm[3]}
+  if (exm_month$Month[i]=="April") {exm_month$totalreads[i]=total_each_exm[4]}
+  if (exm_month$Month[i]=="May") {exm_month$totalreads[i]=total_each_exm[5]}
+  if (exm_month$Month[i]=="June") {exm_month$totalreads[i]=total_each_exm[6]}
+  if (exm_month$Month[i]=="July") {exm_month$totalreads[i]=total_each_exm[7]}
+  if (exm_month$Month[i]=="August") {exm_month$totalreads[i]=total_each_exm[8]}
+  if (exm_month$Month[i]=="September") {exm_month$totalreads[i]=total_each_exm[9]}
+  if (exm_month$Month[i]=="October") {exm_month$totalreads[i]=total_each_exm[10]}
+  if (exm_month$Month[i]=="November") {exm_month$totalreads[i]=total_each_exm[11]}
+  if (exm_month$Month[i]=="December") {exm_month$totalreads[i]=total_each_exm[12]}
+  }
+
+freq<-c()
+
+for (i in 1:nrow(exm_month)) {
+  x<-exm_month$count[i]/exm_month$totalreads[i]
+  freq<-append(freq,x)
+}
+
+exm_month<-cbind(exm_month, freq)
+
+mycolors<-mycolorsbase[c(1,3:7,9,12,15:21)]
+mycolors<-append(mycolors,"black")
+
+
+#Plotting Galloway
+stacked_gal_months<-ggplot(gal_month, aes(fill=Species, y=freq, x=factor(Month, level=level_order))) +
+  guides(fill=guide_legend(ncol=1)) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_manual(values = mycolors) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),axis.text.x = element_text(angle = 90, vjust=0.5,hjust = 0.5),legend.text = element_text(colour="black", size = 10, face = "italic")) +
+  xlab("Month") +
+  ylab("Proportion of reads")
+
+mycolors<-mycolorsbase[c(2,4:14,18,22:23)]
+mycolors<-append(mycolors,"black")
+
+#Plotting Exmoor
+stacked_exm_months<-ggplot(exm_month, aes(fill=Species, y=freq, x=factor(Month, level=level_order))) +
+  guides(fill=guide_legend(ncol=1)) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_manual(values = mycolors) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),axis.text.x = element_text(angle = 90, vjust=0.5,hjust = 0.5),legend.text = element_text(colour="black", size = 10, face = "italic")) +
+  xlab("Month") +
+  ylab("Proportion of reads")
+
+
+
+ggarrange(stacked_gal_months, stacked_exm_months, labels = c("A", "B"), ncol = 1, nrow = 2)
+ggsave("COI/Local_analysis/output/plots/StackedBothMonthsSpecies_nematodes.pdf", width=14, height=8)
+
+
+StackedBothMonths<-ggarrange(stacked_gal_months, stacked_exm_months, labels = c("E", "F"), ncol = 1, nrow = 2)
+
+saveRDS(StackedBothMonths, file="COI/Local_analysis/output/RDS_files/StackedBothMonthsSpecies_nematodes")
+
+
+
+```
+
+
+```{r Find unique species}
+
+
+
+#Loading libraries
+library(tidyverse)
+library(ROBITools)
+library(ROBITaxonomy)
+library(ggpubr)
+library(dplyr)
+library(ggplot2)
+library(ggsci)
+library(RColorBrewer)
+
+#Set level order for plots
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+#Load data
+df_raw <- readRDS("COI/Local_analysis/output/RDS_files/df_for_plots_and_analysis_nematodes")
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_final_nematodes")
+
+
+#Create season vec
+
+samples<-dataset@samples[,c("source", "habitat","month")]
+
+season_vec=c()
+for (i in 1:nrow(samples)) {
+  if (samples$month[i]=="January") {season_vec<-append(season_vec,"early")} 
+  else if (samples$month[i]=="February") {season_vec<-append(season_vec,"early")} 
+  else if (samples$month[i]=="March") {season_vec<-append(season_vec,"early")}
+  else if (samples$month[i]=="April") {season_vec<-append(season_vec,"early")}
+  else if (samples$month[i]=="May") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="June") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="July") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="August") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="September") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="October") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="November") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="December") {season_vec<-append(season_vec,"late")}
+}
+
+
+dataset@samples$season<-as.factor(season_vec)
+
+nsamples<-as.data.frame(table(df_raw$species))
+colnames(nsamples)<-c("species","freq")
+
+#Remove species only present in fewer than 5 samples
+nsamples<-nsamples[which(nsamples$freq>=5),]
+
+
+
+
+df_gal<-dataset@reads[which(dataset@samples$source=="galloway"),which(dataset@motus$final.otu %in% nsamples$species)]
+colnames(df_gal)<-nsamples$species
+df_exm<-dataset@reads[which(dataset@samples$source=="exmoor"),which(dataset@motus$final.otu %in% nsamples$species)]
+colnames(df_exm)<-nsamples$species
+df_open<-dataset@reads[which(dataset@samples$habitat=="open"),which(dataset@motus$final.otu %in% nsamples$species)]
+colnames(df_open)<-nsamples$species
+df_forest<-dataset@reads[which(dataset@samples$habitat=="forest"),which(dataset@motus$final.otu %in% nsamples$species)]
+colnames(df_forest)<-nsamples$species
+df_early<-dataset@reads[which(dataset@samples$season=="early"),which(dataset@motus$final.otu %in% nsamples$species)]
+colnames(df_early)<-nsamples$species
+df_mid<-dataset@reads[which(dataset@samples$season=="mid"),which(dataset@motus$final.otu %in% nsamples$species)]
+colnames(df_mid)<-nsamples$species
+df_late<-dataset@reads[which(dataset@samples$season=="late"),which(dataset@motus$final.otu %in% nsamples$species)]
+colnames(df_late)<-nsamples$species
+df_eg<-dataset@reads[which(dataset@samples$season=="early" & dataset@samples$source=="galloway"), which(dataset@motus$final.otu %in% nsamples$species)]
+colnames(df_eg)<-nsamples$species
+df_ee<-dataset@reads[which(dataset@samples$season=="early" & dataset@samples$source=="exmoor"), which(dataset@motus$final.otu %in% nsamples$species)]
+colnames(df_ee)<-nsamples$species
+df_mg<-dataset@reads[which(dataset@samples$season=="mid" & dataset@samples$source=="galloway"), which(dataset@motus$final.otu %in% nsamples$species)]
+colnames(df_mg)<-nsamples$species
+df_me<-dataset@reads[which(dataset@samples$season=="mid" & dataset@samples$source=="exmoor"), which(dataset@motus$final.otu %in% nsamples$species)]
+colnames(df_me)<-nsamples$species
+df_lg<-dataset@reads[which(dataset@samples$season=="late" & dataset@samples$source=="galloway"), which(dataset@motus$final.otu %in% nsamples$species)]
+colnames(df_lg)<-nsamples$species
+df_le<-dataset@reads[which(dataset@samples$season=="late" & dataset@samples$source=="exmoor"), which(dataset@motus$final.otu %in% nsamples$species)]
+colnames(df_le)<-nsamples$species
+
+
+
+
+df_gal_total<-colSums(df_gal)
+df_exm_total<-colSums(df_exm)
+df_open_total<-colSums(df_open)
+df_forest_total<-colSums(df_forest)
+
+GaEx<-data.frame(rbind(df_gal_total,df_exm_total))
+colnames(GaEx)<-colnames(df_gal)
+
+
+skew<-NULL
+
+for (i in 1:ncol(GaEx)) {
+  if (GaEx[,i][1]/GaEx[,i][2]<0.1) {skew<-append(skew, "YES: Exm")}
+  else if (GaEx[,i][2]/GaEx[,i][1]<0.1) {skew<-append(skew, "YES: Gal")}
+  else  {skew<-append(skew, "NO")}
+  
+  
+}
+
+GaEx<-rbind(GaEx,skew)
+
+Skew.df<-data.frame(t(GaEx))
+
+
+OF<-data.frame(rbind(df_open_total,df_forest_total))
+colnames(OF)<-colnames(df_open)
+
+
+skew<-NULL
+
+for (i in 1:ncol(OF)) {
+  if (OF[,i][1]/OF[,i][2]<0.1) {skew<-append(skew, "YES: Forest")}
+  else if (OF[,i][2]/OF[,i][1]<0.1) {skew<-append(skew, "YES: Open")}
+  else  {skew<-append(skew, "NO")}
+  
+  
+}
+
+OF<-rbind(OF,skew)
+
+Skew.df<-cbind(Skew.df, data.frame(t(OF)))
+
+colnames(Skew.df)<-c("Galloway","Exmoor","Skewed source","Open","Forest","Skewed habitat")
+
+
+write.table(Skew.df, file="COI/Local_analysis/output/tables/skew_table_nematodes.txt", sep = "\t")
+
+
+
+#Unique species
+
+gal_species<-c()
+exm_species<-c()
+open_species<-c()
+forest_species<-c()
+early_species<-c()
+mid_species<-c()
+late_species<-c()
+eg_species<-c()
+mg_species<-c()
+lg_species<-c()
+ee_species<-c()
+me_species<-c()
+le_species<-c()
+for (i in 1:ncol(df_gal)) {
+  if (sum(df_gal[,i])>0) {gal_species<-append(gal_species,colnames(df_gal)[i])}
+  if (sum(df_exm[,i])>0) {exm_species<-append(exm_species,colnames(df_exm)[i])}
+  if (sum(df_open[,i])>0) {open_species<-append(open_species,colnames(df_open)[i])}
+  if (sum(df_forest[,i])>0) {forest_species<-append(forest_species,colnames(df_forest)[i])}
+  if (sum(df_early[,i])>0) {early_species<-append(early_species,colnames(df_early)[i])}
+  if (sum(df_mid[,i])>0) {mid_species<-append(mid_species,colnames(df_mid)[i])}
+  if (sum(df_late[,i])>0) {late_species<-append(late_species,colnames(df_late)[i])}
+  if (sum(df_eg[,i])>0) {eg_species<-append(eg_species,colnames(df_eg)[i])}
+  if (sum(df_mg[,i])>0) {mg_species<-append(mg_species,colnames(df_mg)[i])}
+  if (sum(df_lg[,i])>0) {lg_species<-append(lg_species,colnames(df_lg)[i])}
+  if (sum(df_ee[,i])>0) {ee_species<-append(ee_species,colnames(df_ee)[i])}
+  if (sum(df_me[,i])>0) {me_species<-append(me_species,colnames(df_me)[i])}
+  if (sum(df_le[,i])>0) {le_species<-append(le_species,colnames(df_le)[i])}
+}
+open_uniq<-setdiff(open_species, forest_species)
+forest_uniq<-setdiff(forest_species,open_species)
+
+
+gal_uniq<-setdiff(gal_species, exm_species)
+exm_uniq<-setdiff(exm_species,gal_species)
+
+mx<-max(length(open_uniq),length(forest_uniq),length(gal_uniq),length(exm_uniq))
+
+
+unique<-data.frame("open"=append(open_uniq,rep(0, each=mx-length(open_uniq))),
+                   "forest"=append(forest_uniq,rep(0, each=mx-length(forest_uniq))), 
+                   "galloway"=append(gal_uniq,rep(0, each=mx-length(gal_uniq))), 
+                   "exmoor"=append(exm_uniq,rep(0, each=mx-length(exm_uniq))))
+
+write.csv2(unique, file="COI/Local_analysis/output/tables/unique_nematodes.csv")
+
+
+
+#Create Venn diagram
+
+
+library("ggVennDiagram")
+
+x <- list(
+  Galloway = gal_species, 
+  Exmoor = exm_species,
+  Open = open_species,
+  Forest = forest_species,
+  Early = early_species,
+  Mid = mid_species,
+  Late = late_species,
+  Gal.Early = eg_species, 
+  Gal.Mid = mg_species,
+  Gal.Late = lg_species,
+  Exm.Early = ee_species,
+  Exm.Mid = me_species,
+  Exm.Late = le_species
+)
+
+
+venn1 <- ggVennDiagram(
+  x[1:2], label_alpha = 0,
+  category.names = c("Galloway","Exmoor"),
+  edge_lty = "blank", set_size = 8) +
+  ggplot2::scale_fill_gradient2(low="#f2f5f0",high = "#2e60a6", mid="#29AF7FFF", midpoint = 11) +
+  theme(text = element_text(size=20))
+
+venn1
+
+venn2 <- ggVennDiagram(
+  x[3:4], label_alpha = 0,
+  category.names = c("Open","Forest"),
+  edge_lty = "blank", set_size = 8) +
+  ggplot2::scale_fill_gradient2(low="#f2f5f0",high = "#2e60a6", mid="#29AF7FFF", midpoint = 18) +
+  theme(text = element_text(size=20))
+
+venn2
+
+venn3 <- ggVennDiagram(
+  x[5:7], label_alpha = 0,
+  category.names = c("Early","Mid","Late"),
+  edge_lty = "blank", set_size = 8) +
+  ggplot2::scale_fill_gradient2(low="#f2f5f0",high = "#2e60a6", mid="#29AF7FFF", midpoint = 16) +
+  theme(text = element_text(size=20))
+
+venn3
+
+venn4 <- ggVennDiagram(
+  x[8:10], label_alpha = 0,
+  category.names = c("Early","Mid","Late"),
+  edge_lty = "blank", set_size = 8) +
+  ggplot2::scale_fill_gradient2(low="#f2f5f0",high = "#2e60a6", mid="#29AF7FFF", midpoint = 5) +
+  theme(text = element_text(size=20))
+
+venn4
+
+venn5 <- ggVennDiagram(
+  x[11:13], label_alpha = 0,
+  category.names = c("Early","Mid","Late"),
+  edge_lty = "blank", set_size = 8) +
+  ggplot2::scale_fill_gradient2(low="#f2f5f0",high = "#2e60a6", mid="#29AF7FFF", midpoint = 15) +
+  theme(text = element_text(size=20))
+
+venn5
+
+
+saveRDS(venn1, file="COI/Local_analysis/output/RDS_files/venn1_nematodes")
+saveRDS(venn2, file="COI/Local_analysis/output/RDS_files/venn2_nematodes")
+saveRDS(venn3, file="COI/Local_analysis/output/RDS_files/venn3_nematodes")
+saveRDS(venn4, file="COI/Local_analysis/output/RDS_files/venn4_nematodes")
+saveRDS(venn5, file="COI/Local_analysis/output/RDS_files/venn5_nematodes")
+
+
+ggarrange(venn1,venn2,venn4,venn5, labels = c("A", "B","C","D","E"), ncol = 4, nrow = 1)
+ggsave("COI/Local_analysis/output/plots/venn_diagrams_nematodes.pdf", width=12, height=6)
+
+
+```
+
+```{r NDMS plots}
+
+#Libraries
+library(vegan)
+library(dplyr)
+library(ggplot2)
+library(ggalt)
+library(ggpubr)
+#library(BiodiversityR)
+
+#Function for inverse normal transformation
+inormal <- function(x)
+{
+  qnorm((rank(x, na.last = "keep") - 0.5) / sum(!is.na(x)))
+}
+
+#This step plots CAP and NMDS plots of abundance and presence/absence data
+dataset <- readRDS("COI/Local_analysis/output/RDS_files/dataset_final_nematodes")
+
+par(mfrow=c(1,1))
+
+samples<-dataset@samples[,c("source", "habitat","month")]
+
+season_vec=c()
+for (i in 1:nrow(samples)) {
+  if (samples$month[i]=="January") {season_vec<-append(season_vec,"early")} 
+  else if (samples$month[i]=="February") {season_vec<-append(season_vec,"early")} 
+  else if (samples$month[i]=="March") {season_vec<-append(season_vec,"early")}
+  else if (samples$month[i]=="April") {season_vec<-append(season_vec,"early")}
+  else if (samples$month[i]=="May") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="June") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="July") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="August") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="September") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="October") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="November") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="December") {season_vec<-append(season_vec,"late")}
+}
+samples<-cbind(samples, "season"=season_vec)
+
+group<-c()
+for (i in 1:nrow(samples)) {
+  if (samples$source[i]=="galloway" && samples$season[i]=="early" && samples$habitat[i]=="open") {group<-append(group,"Galloway - EarlyOpen")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="early" && samples$habitat[i]=="forest") {group<-append(group,"Galloway - EarlyForest")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="mid" && samples$habitat[i]=="open") {group<-append(group,"Galloway - MidOpen")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="mid" && samples$habitat[i]=="forest") {group<-append(group,"Galloway - MidForest")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="late" && samples$habitat[i]=="open") {group<-append(group,"Galloway - LateOpen")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="late" && samples$habitat[i]=="forest") {group<-append(group,"Galloway - LateForest")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="early" && samples$habitat[i]=="open") {group<-append(group,"Exmoor - EarlyOpen")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="early" && samples$habitat[i]=="forest") {group<-append(group,"Exmoor - EarlyForest")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="mid" && samples$habitat[i]=="open") {group<-append(group,"Exmoor - MidOpen")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="mid" && samples$habitat[i]=="forest") {group<-append(group,"Exmoor - MidForest")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="late" && samples$habitat[i]=="open") {group<-append(group,"Exmoor - LateOpen")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="late" && samples$habitat[i]=="forest") {group<-append(group,"Exmoor - LateForest")}
+}
+
+samples<-cbind(samples,group)
+
+
+group2<-c()
+for (i in 1:nrow(samples)) {
+  if (samples$source[i]=="galloway" && samples$habitat[i]=="open") {group2<-append(group2,"Galloway - Open")}
+  if (samples$source[i]=="galloway" && samples$habitat[i]=="forest") {group2<-append(group2,"Galloway - Forest")}
+  if (samples$source[i]=="exmoor" && samples$habitat[i]=="open") {group2<-append(group2,"Exmoor - Open")}
+  if (samples$source[i]=="exmoor" && samples$habitat[i]=="forest") {group2<-append(group2,"Exmoor - Forest")}
+}
+
+
+group3<-c()
+for (i in 1:nrow(samples)) {
+  if (samples$source[i]=="galloway" && samples$season[i]=="early") {group3<-append(group3,"Galloway - Early")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="mid") {group3<-append(group3,"Galloway - Mid")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="late") {group3<-append(group3,"Galloway - Late")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="early") {group3<-append(group3,"Exmoor - Early")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="mid") {group3<-append(group3,"Exmoor - Mid")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="late") {group3<-append(group3,"Exmoor - Late")}
+}
+
+
+
+
+
+samples<-cbind(samples,group2,group3)
+
+reads<-dataset$reads
+
+#Without outlier
+reads<-reads[-which(row.names(reads)=="JAN2"),]
+#reads<-reads[-which(row.names(reads)=="AUG11"),]
+
+#Evaluate number of dimensions
+
+mreads<-as.matrix(sqrt(reads))
+#mreads<-as.matrix(reads) #With or without transformation?
+nmds1D = metaMDS(mreads, distance = "bray", k=1)
+nmds2D = metaMDS(mreads, distance = "bray", k=2)
+nmds3D = metaMDS(mreads, distance = "bray", k=3)
+nmds4D = metaMDS(mreads, distance = "bray", k=4)
+nmds5D = metaMDS(mreads, distance = "bray", k=5)
+nmds20D = metaMDS(mreads, distance = "bray", k=20)
+
+dim<-data.frame("dim"=c(1,2,3,4,5,20),"stress"=c(nmds1D$stress,nmds2D$stress,nmds3D$stress,nmds4D$stress,nmds5D$stress,nmds20D$stress))
+
+plot(dim$dim,dim$stress, main="Stress values in nMDS ordination with increasing numbers of dimensions", cex.main=0.8)
+abline(h=0.20, col="red", lty=2)
+
+par(mfrow=c(2,2))
+stressplot(nmds1D, main="Stressplot K=1")
+stressplot(nmds2D, main="Stressplot K=2")
+stressplot(nmds3D, main="Stressplot K=3")
+stressplot(nmds4D, main="Stressplot K=4")
+stressplot(nmds5D, main="Stressplot K=5")
+stressplot(nmds20D, main="Stressplot K=20")
+
+
+#From stress vs. dimension plot, and stressplots, it seems that 2 dimensions will be appropriate (non-metric fit R2>0.978, stress<0.1467)
+
+reads<-dataset$reads
+
+#Without outlier
+reads<-reads[-which(row.names(reads)=="JAN2"),]
+samples<-samples[-which(row.names(samples)=="JAN2"),]
+#reads<-reads[-which(row.names(reads)=="AUG11"),]
+#samples<-samples[-which(row.names(samples)=="AUG11"),]
+
+#Perform NMDS-plot of reads
+mreads<-as.matrix(sqrt(reads))
+#mreads<-as.matrix(reads) #With or without transformation?
+nmds = metaMDS(mreads, distance = "bray")
+nmds.scores = as.data.frame(vegan::scores(nmds))
+head(nmds.scores)
+
+nmds.scores$Sample = row.names(samples)
+nmds.scores$Source = samples$source
+nmds.scores$Habitat = samples$habitat
+nmds.scores$Month = samples$month
+nmds.scores$Season = samples$season
+nmds.scores$Group = samples$group
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Source=factor(Source, levels=c("galloway","exmoor","Cattle","Horses")))
+
+nmds.scores$Source[which(nmds.scores$Source=="galloway")]<-"Cattle"
+nmds.scores$Source[which(nmds.scores$Source=="exmoor")]<-"Horses"
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Source=factor(Source, levels=c("Cattle","Horses")))
+
+
+gg1<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  #annotate("text", x=0, y=2, label="All samples - nematodes", cex=3) +
+  #annotate("text", x=0, y=1.8, label="(Squareroot - transformed read counts)", cex=3) +
+  annotate("text", x=-1.5, y=1.3, label="Stress=0.1465", cex=3) +
+  coord_cartesian(xlim=c(-2.5,1.5),ylim=c(-1.8,1.5)) +
+  theme_bw()
+
+plot(gg1)
+
+gg2<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Habitat)) +
+  scale_color_manual(values=c("darkgreen","gold1","palegreen","darkgoldenrod")) +
+  geom_encircle(aes(fill = Habitat), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkgreen","gold1","palegreen","darkgoldenrod")) +
+  #annotate("text", x=0, y=2, label="All samples - nematodes", cex=3) +
+  #annotate("text", x=0, y=1.8, label="(Squareroot - transformed read counts)", cex=3) +
+  annotate("text", x=-1.5, y=1.3, label="Stress=0.1465", cex=3) +
+  coord_cartesian(xlim=c(-2.5,1.5),ylim=c(-1.8,1.5)) +
+  theme_bw()
+
+plot(gg2)
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Season=factor(Season, levels=c("early","mid","late")))
+
+
+
+gg3<-ggplot(nmds.scores[which(nmds.scores$Source=="Cattle"),], aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Season)) +
+  scale_color_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  geom_encircle(aes(fill = Season), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  #annotate("text", x=0, y=2, label="Galloway samples - nematodes", cex=3) +
+  #annotate("text", x=0, y=1.8, label="(Squareroot - transformed read counts)", cex=3) +
+  annotate("text", x=-1.5, y=1.3, label="Stress=0.1465", cex=3) +
+  coord_cartesian(xlim=c(-2.5,1.5),ylim=c(-1.8,1.5)) +
+  theme_bw()
+
+plot(gg3)
+
+gg4<-ggplot(nmds.scores[which(nmds.scores$Source=="Horses"),], aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Season)) +
+  scale_color_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  geom_encircle(aes(fill = Season), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  #annotate("text", x=0, y=2, label="Exmoor samples - nematodes", cex=3) +
+  #annotate("text", x=0, y=1.8, label="(Squareroot - transformed read counts)", cex=3) +
+  annotate("text", x=-1.5, y=1.3, label="Stress=0.1465", cex=3) +
+  coord_cartesian(xlim=c(-2.5,1.5),ylim=c(-1.8,1.5)) +
+  theme_bw()
+
+plot(gg4)
+
+
+saveRDS(gg1, file="COI/Local_analysis/output/RDS_files/ggNemaGalExm")
+saveRDS(gg2, file="COI/Local_analysis/output/RDS_files/ggNemaOpenForest")
+saveRDS(gg3, file="COI/Local_analysis/output/RDS_files/ggNemaGalSeason")
+saveRDS(gg4, file="COI/Local_analysis/output/RDS_files/ggNemaExmSeason")
+
+ggarrange(gg1,gg2,gg3,gg4, labels = c("A", "B","C","D"), ncol = 2, nrow = 2)
+ggsave("COI/Local_analysis/output/plots/nMDS_COI_nematoda.pdf", width=10, height=8)
+
+
+
+#PERMANOVA
+
+#Galloway vs. Exmoor
+dist<-vegdist(mreads, method = "bray")
+
+##Test for homogeneity of multivariate variance
+#Galloway vs. exmoor
+dispersion <- betadisper(dist, group=samples$group)
+permutest(dispersion)
+
+#No homogeneity of dispersion between groups, square root transformation applied
+dist.t<-sqrt(dist)
+dispersion <- betadisper(dist.t, group=samples$group)
+permutest(dispersion)
+
+
+par(mfrow=c(1,1))
+
+plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
+
+perm<-adonis2(dist~source*season*habitat, data=samples, permutations = 999)
+perm
+
+
+
+
+
+#Create RDS with p.values from PERMANOVA
+
+perm.out<-perm
+
+saveRDS(perm.out, file="COI/Local_analysis/output/RDS_files/permanova_output_nematodes")
+
+write.table(perm.out, file="COI/Local_analysis/output/textfiles/permanova_output_COI_nematodes.txt", sep="\t",row.names = TRUE, col.names = TRUE)
+
+
+```
+
+```{r Model richness}
+
+df<-readRDS("COI/Local_analysis/output/RDS_files/Richness_df_nematodes")
+
+month_vec=c()
+for (i in 1:nrow(df)) {
+  if (df$month[i]=="January") {month_vec<-append(month_vec,1)} 
+  else if (df$month[i]=="February") {month_vec<-append(month_vec,2)} 
+  else if (df$month[i]=="March") {month_vec<-append(month_vec,3)}
+  else if (df$month[i]=="April") {month_vec<-append(month_vec,4)}
+  else if (df$month[i]=="May") {month_vec<-append(month_vec,5)}
+  else if (df$month[i]=="June") {month_vec<-append(month_vec,6)}
+  else if (df$month[i]=="July") {month_vec<-append(month_vec,7)}
+  else if (df$month[i]=="August") {month_vec<-append(month_vec,8)}
+  else if (df$month[i]=="September") {month_vec<-append(month_vec,9)}
+  else if (df$month[i]=="October") {month_vec<-append(month_vec,10)}
+  else if (df$month[i]=="November") {month_vec<-append(month_vec,11)}
+  else if (df$month[i]=="December") {month_vec<-append(month_vec,12)}
+  
+}
+
+df<-cbind(df, "month.number"=month_vec)
+
+season_vec=c()
+for (i in 1:nrow(df)) {
+  if (df$month[i]=="January") {season_vec<-append(season_vec,"early")} 
+  else if (df$month[i]=="February") {season_vec<-append(season_vec,"early")} 
+  else if (df$month[i]=="March") {season_vec<-append(season_vec,"early")}
+  else if (df$month[i]=="April") {season_vec<-append(season_vec,"early")}
+  else if (df$month[i]=="May") {season_vec<-append(season_vec,"mid")}
+  else if (df$month[i]=="June") {season_vec<-append(season_vec,"mid")}
+  else if (df$month[i]=="July") {season_vec<-append(season_vec,"mid")}
+  else if (df$month[i]=="August") {season_vec<-append(season_vec,"mid")}
+  else if (df$month[i]=="September") {season_vec<-append(season_vec,"late")}
+  else if (df$month[i]=="October") {season_vec<-append(season_vec,"late")}
+  else if (df$month[i]=="November") {season_vec<-append(season_vec,"late")}
+  else if (df$month[i]=="December") {season_vec<-append(season_vec,"late")}
+  
+}
+
+df<-cbind(df, "season"=as.factor(season_vec))
+
+levels(df$source)<-droplevels(df$source,"control")
+
+hist(df$Count)
+
+model1.1<-glm(Count~month.number*source*habitat, family="poisson",data=df)
+summary(model1.1)
+
+par(mfrow=c(2,2))
+plot(model1.1)
+
+redu1<-glm(Count~source, family="poisson",data=df)
+
+redu2<-glm(Count~season, family="poisson",data=df)
+
+redu3<-glm(Count~habitat, family="poisson",data=df)
+
+redu4<-glm(Count~source+season,family="poisson",data=df)
+
+redu5<-glm(Count~source+habitat, family="poisson",data=df)
+
+redu6<-glm(Count~habitat+season, family="poisson",data=df)
+
+comparison<-anova(model1.1,redu1,redu2,redu3,redu4,redu5,redu6)
+
+library(MASS)
+library(spdep)
+selection<-MASS::stepAIC(model1.1)
+selection
+
+colors = c("red","blue","green")
+
+par(mfrow=c(2,2))
+boxplot(Count~source+habitat+season, data=df, col=colors)
+boxplot(Count~source, data=df, col=colors)
+boxplot(Count~habitat, data=df, col=colors)
+boxplot(Count~season+source, data=df, col=colors)
+
+par(mfrow=c(1,1))
+plot(Count ~ month.number, data=df[which(df$source=="exmoor"),])
+
+#df_gal<-subset(df, df$source=="galloway")
+#df_exm<-subset(df, df$source=="exmoor")
+
+#Use model to predict values and plot predicted vs. observed
+
+pred<-predict.glm(model1.1, type="response")
+
+pred2<-as.data.frame(cbind(df$Count, pred))
+
+predplot<-ggplot(pred2, aes(x=V1, y=pred)) + geom_point() + geom_abline(slope = 1, intercept = 0, lty=2, col="red") + xlab("Observed") + ylab("Predicted") + scale_y_continuous(breaks=c(seq(0, 26, by = 2))) + coord_cartesian(ylim=c(0,19),xlim=c(0,25)) + theme_bw()
+
+
+predplot
+
+
+##### DIET RICHNESS #############################################################################
+
+#Test for difference in diet richness between galloway and exmoor in each season
+t1<-kruskal.test(Count~source,data=df)
+t2<-kruskal.test(Count~season,data=df)
+t3<-kruskal.test(Count~habitat,data=df)
+
+RG<-c(mean(df$Count[which(df$source=="galloway")]), std.error(df$Count[which(df$source=="galloway")]))
+REx<-c(mean(df$Count[which(df$source=="exmoor")]), std.error(df$Count[which(df$source=="exmoor")]))
+RO<-c(mean(df$Count[which(df$habitat=="open")]), std.error(df$Count[which(df$habitat=="open")]))
+RF<-c(mean(df$Count[which(df$habitat=="forest")]), std.error(df$Count[which(df$habitat=="forest")]))
+
+## Differences between sources
+#Early
+t4<-wilcox.test(df$Count[which(df$season=="early" & df$source=="galloway")],df$Count[which(df$season=="early" & df$source=="exmoor")])
+# no difference
+#Mid
+t5<-wilcox.test(df$Count[which(df$season=="mid" & df$source=="galloway")],df$Count[which(df$season=="mid" & df$source=="exmoor")])
+#marginally, but prob. not after corrections
+#Late
+t6<-wilcox.test(df$Count[which(df$season=="late" & df$source=="galloway")],df$Count[which(df$season=="late" & df$source=="exmoor")])
+#yes, but prob. not after corrections
+# MEANS and sd. err
+RGE<-c(mean(df$Count[which(df$season=="early" & df$source=="galloway")]), std.error(df$Count[which(df$season=="early" & df$source=="galloway")]))
+RGM<-c(mean(df$Count[which(df$season=="mid" & df$source=="galloway")]), std.error(df$Count[which(df$season=="mid" & df$source=="galloway")]))
+RGL<-c(mean(df$Count[which(df$season=="late" & df$source=="galloway")]), std.error(df$Count[which(df$season=="late" & df$source=="galloway")]))
+REE<-c(mean(df$Count[which(df$season=="early" & df$source=="exmoor")]), std.error(df$Count[which(df$season=="early" & df$source=="exmoor")]))
+REM<-c(mean(df$Count[which(df$season=="mid" & df$source=="exmoor")]), std.error(df$Count[which(df$season=="mid" & df$source=="exmoor")]))
+REL<-c(mean(df$Count[which(df$season=="late" & df$source=="exmoor")]), std.error(df$Count[which(df$season=="late" & df$source=="exmoor")]))
+
+## Differences between seasons
+#Galloway
+t7<-wilcox.test(df$Count[which(df$season=="early" & df$source=="galloway")],df$Count[which(df$season=="mid" & df$source=="galloway")])
+t8<-wilcox.test(df$Count[which(df$season=="early" & df$source=="galloway")],df$Count[which(df$season=="late" & df$source=="galloway")])
+t9<-wilcox.test(df$Count[which(df$season=="late" & df$source=="galloway")],df$Count[which(df$season=="mid" & df$source=="galloway")])
+
+#Exmoor
+t10<-wilcox.test(df$Count[which(df$season=="early" & df$source=="exmoor")],df$Count[which(df$season=="mid" & df$source=="exmoor")])
+t11<-wilcox.test(df$Count[which(df$season=="early" & df$source=="exmoor")],df$Count[which(df$season=="late" & df$source=="exmoor")])
+t12<-wilcox.test(df$Count[which(df$season=="late" & df$source=="exmoor")],df$Count[which(df$season=="mid" & df$source=="exmoor")])
+
+#All
+t13<-wilcox.test(df$Count[which(df$season=="early")],df$Count[which(df$season=="mid")])
+t14<-wilcox.test(df$Count[which(df$season=="early")],df$Count[which(df$season=="late")])
+t15<-wilcox.test(df$Count[which(df$season=="late")],df$Count[which(df$season=="mid")])
+
+
+#Open vs. forest, each source
+t16<-wilcox.test(df$Count[which(df$habitat=="open" & df$source=="galloway")],df$Count[which(df$habitat=="forest" & df$source=="galloway")])
+t17<-wilcox.test(df$Count[which(df$habitat=="open" & df$source=="exmoor")],df$Count[which(df$habitat=="forest" & df$source=="exmoor")])
+
+#Means and sd. err.
+RE<-c(mean(df$Count[which(df$season=="early")]), std.error(df$Count[which(df$season=="early")]))
+RM<-c(mean(df$Count[which(df$season=="mid")]), std.error(df$Count[which(df$season=="mid")]))
+RL<-c(mean(df$Count[which(df$season=="late")]), std.error(df$Count[which(df$season=="late")]))
+
+RGO<-c(mean(df$Count[which(df$habitat=="open" & df$source=="galloway")]), std.error(df$Count[which(df$habitat=="open" & df$source=="galloway")]))
+RGF<-c(mean(df$Count[which(df$habitat=="forest" & df$source=="galloway")]), std.error(df$Count[which(df$habitat=="forest" & df$source=="galloway")]))
+REO<-c(mean(df$Count[which(df$habitat=="open" & df$source=="exmoor")]), std.error(df$Count[which(df$habitat=="open" & df$source=="exmoor")]))
+REF<-c(mean(df$Count[which(df$habitat=="forest" & df$source=="exmoor")]), std.error(df$Count[which(df$habitat=="forest" & df$source=="exmoor")]))
+
+pvals<-data.frame(c(t1$p.value,t2$p.value,t3$p.value,t4$p.value,t5$p.value,t6$p.value,t7$p.value,t8$p.value,t9$p.value,t10$p.value,t11$p.value,t12$p.value,t13$p.value,t14$p.value,t15$p.value,t16$p.value,t17$p.value))
+rownames(pvals)<-c("t1","t2","t3","t4","t5","t6","t7","t8","t9","t10","t11","t12","t13","t14","t15","t16","t17")
+colnames(pvals)<-"p.value"
+
+holm<-p.adjust(pvals$p.value, method="holm")
+pvals<-cbind(pvals,"corrected"=holm)
+
+
+significant<-c()
+for (i in 1:nrow(pvals)) {
+  if (pvals$corrected[i]<0.01) {significant<-append(significant, "yes")}
+  else if (pvals$corrected[i]<0.05 && pvals$corrected[i]>0.01) {significant<-append(significant, "marginally")}
+  else {significant<-append(significant, "no")}
+}
+pvals<-cbind(pvals, significant)
+
+saveRDS(pvals, "COI/Local_analysis/output/RDS_files/pvals_difference_nematodes")
+write.table(pvals,"COI/Local_analysis/output/tables/pvals_difference_nematodes.txt",sep="\t",row.names=TRUE)
+
+means<-c("mean"=c(),"StERR"=c())
+means<-rbind(means,RGE,RGM,RGL,REE,REM,REL,RE,RM,RL,RG,REx,RO,RF,RGO,RGF,REO,REF)
+colnames(means)<-c("mean","StErr")
+
+saveRDS(means, "COI/Local_analysis/output/RDS_files/means_groups_nematodes")
+write.table(means,"COI/Local_analysis/output/tables/means_groups_nematodes.txt",sep="\t",row.names=TRUE)
+
+
+
+```
+
+# Nematodes, OTU level
+
+
+```{r Extract nematodes 2}
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_final")
+
+
+
+m=dataset
+reads = m@reads
+samples = m@samples
+motus = m@motus
+
+##Extract all nematode hits with over 95% similarity
+dung.idx<-which(m@motus$phylum_name=="Nematoda")
+
+motus<-motus[dung.idx,]
+reads<-reads[,dung.idx]
+idx.include<-which(rowSums(reads)>0)
+reads<-reads[rowSums(reads)>0,]
+samples<-samples[idx.include,]
+
+samples<-samples[,-1]
+samples<-samples[,-c(26:29)]
+
+
+m@reads <- reads
+m@samples <- samples
+m@motus <- motus
+
+dataset = m
+
+total_nematodes<-sum(reads)
+
+par(mfrow=c(1,2))
+
+mean_sample<-mean(rowSums(dataset@reads[dataset@samples$samples.DungSamples,]))
+hist(rowSums(dataset@reads[dataset@samples$samples.DungSamples,]), #CHANGE Stream_water
+     breaks=50,xlab="Reads",main="Read counts")
+sem_sample<-std.error(rowSums(dataset@reads[dataset@samples$samples.DungSamples,]))
+
+hist(log(rowSums(dataset@reads[dataset@samples$samples.DungSamples,])), #CHANGE Stream_water
+     breaks=50,xlab="Reads",main="Read counts")
+
+
+saveRDS(dataset, file="COI/Local_analysis/output/RDS_files/dataset_final_OTU_nematodes")
+
+```
+
+```{r Generating input df and create genera list with reads}
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_final_OTU_nematodes")
+
+
+#Generating input df
+
+
+#Create temporary df with read counts in each sample from metabarcoding file
+df_tmp<-data.frame(dataset@reads)
+colnames(df_tmp)<-dataset@motus$id
+
+
+
+#Create temporary df to build file with the columns (sample, species, count, totalreads, freq)
+df<-data.frame("sample"=c(), "species"=c(),"count"=c())
+df<-rbind(df, c(1,1,1))
+colnames(df)<-c("sample", "species", "count")
+
+
+#Add row to the dataframe for each sample/species combination
+for (i in 1:nrow(df_tmp)) {
+  for (j in 1:ncol(df_tmp)) {
+   if (df_tmp[i,j]!=0) 
+     {df<-rbind(df, c(row.names(df_tmp)[i],colnames(df_tmp)[j],df_tmp[i,j]))
+     } 
+  }
+}
+
+#Subtract the first row which was only used to keep correct format
+df<-df[-1,]
+
+#Change type of columns (sample=factor, count=numeric)
+df2<-data.frame("sample"=as.factor(df$sample), "species"=df$species, "count"=as.numeric(df$count))
+
+#Calculate total reads in each sample
+#Create df with unique sample names and totalreads vector
+totalreads1<-data.frame("sample"=as.factor(unique(df2$sample)))
+totalreads<-c()
+
+#Add value for total reads in each sample to the sample_count vector
+for (sample in unique(df2$sample)) {
+  x1<-which(df2$sample==sample)
+  x2<-sum(df2$count[x1[1]:x1[length(x1)]])
+  totalreads<-append(totalreads, rep(x2, each=length(x1))) #Each total count added as many times as each sample in represented in df2
+}
+
+#Add totalreads to df2
+df2<-cbind(df2,totalreads)
+
+
+#Calculate frequency of each species in the sample
+freq<-c()
+
+for (i in 1:nrow(df2)) {
+  x<-df2$count[i]/df2$totalreads[i]
+  freq<-append(freq,x)
+  
+  
+}
+
+
+#Add to df2
+df2<-cbind(df2, freq)
+
+#Save as RDS
+
+saveRDS(df2, file="COI/Local_analysis/output/RDS_files/df_for_plots_and_analysis_OTU_nematodes")
+
+
+
+
+```
+
+```{r Richness plot and stacked barplot ASVs/species}
+
+#Plotting the richness of sampling time as well as stacked barplot of all sampling times
+
+
+#Loading libraries
+library(tidyverse)
+library(ROBITools)
+library(ROBITaxonomy)
+library(ggpubr)
+library(dplyr)
+library(ggplot2)
+library(ggsci)
+library(RColorBrewer)
+
+#Set level order for plots
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+#Load data
+df_raw <- readRDS("COI/Local_analysis/output/RDS_files/df_for_plots_and_analysis_OTU_nematodes")
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_final_OTU_nematodes")
+
+
+
+#Remove unidentified ASVs from list for richness calculations - we need to decide at which level we will evaluate nematode richness
+
+
+
+m=dataset
+reads = m@reads
+samples = m@samples
+motus = m@motus
+
+#Extract all hits
+dung.idx<-seq(1,length(m@motus$final.otu))
+
+motus<-motus[dung.idx,]
+reads<-reads[,dung.idx]
+idx.include<-which(rowSums(reads)>0)
+reads<-reads[rowSums(reads)>0,]
+
+samples<-samples[,-1]
+samples<-samples[,-c(26:29)]
+
+
+m@reads <- reads
+m@samples <- samples
+m@motus <- motus
+
+dataset = m
+
+
+
+#idx_remove<-c()
+#idx_keep<-c()
+#for (i in 1:nrow(df_raw)) {
+#  ifelse(grepl("sp.",df_raw$species[i], fixed=TRUE), #ifelse(grepl("\\(",df_raw$species[i]),idx_keep<-append(idx_keep,i),idx_remove<-append(idx_remove,i)),idx_keep<-append(idx_keep,i))
+#}
+
+
+#df_raw2<-df_raw[-idx_remove,]
+
+#PROBLEM - when sequneces with no id is excluded, the vectors in dataset does not match in length! Solution: try to create new dataset, where they are excluded
+
+
+
+
+Samples<-unique(df_raw$sample)
+Richness<-list()
+
+for (i in 1:length(Samples)){
+  df<-as.data.frame(Samples[i])
+  colnames(df)<-c("Samples")
+  Count<-sum(df_raw$count[df_raw$sample==Samples[i]] !=0)
+  df<-cbind(df, Count)
+  Richness<-rbind(Richness, df)
+}
+
+Richness<-Richness %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+
+
+
+#Mean richness pr. month - Galloway
+
+Richness<-cbind(Richness, "source"=dataset@samples$source, "month"=dataset@samples$month, "habitat"=dataset@samples$habitat, "lat"=dataset@samples$lat, "lon"=dataset@samples$lon)
+
+Richness<-Richness[order(Richness$month),]
+
+Richness_gal<-subset(Richness, Richness$source=="galloway")
+Richness_exm<-subset(Richness, Richness$source=="exmoor")
+
+#Calculate std error
+
+Gal_agg<-aggregate( . ~ month, data=Richness_gal, std.error)
+Exm_agg<-aggregate( . ~ month, data=Richness_exm, std.error)
+
+
+
+se_gal<-c(rep(Gal_agg$Count[1], each=8),
+          rep(Gal_agg$Count[2], each=10),
+          rep(Gal_agg$Count[3], each=10),
+          rep(Gal_agg$Count[4], each=10),
+          rep(Gal_agg$Count[5], each=6),
+          rep(Gal_agg$Count[6], each=10),
+          rep(Gal_agg$Count[7], each=9),
+          rep(Gal_agg$Count[8], each=9),
+          rep(Gal_agg$Count[9], each=5),
+          rep(Gal_agg$Count[10], each=10),
+          rep(Gal_agg$Count[11], each=10),
+          rep(Gal_agg$Count[12], each=10))
+
+se_exm<-c(rep(Exm_agg$Count[1], each=11),
+          rep(Exm_agg$Count[2], each=10),
+          rep(Exm_agg$Count[3], each=10),
+          rep(Exm_agg$Count[4], each=10),
+          rep(Exm_agg$Count[5], each=10),
+          rep(Exm_agg$Count[6], each=10),
+          rep(Exm_agg$Count[7], each=11),
+          rep(Exm_agg$Count[8], each=10),
+          rep(Exm_agg$Count[9], each=15),
+          rep(Exm_agg$Count[10], each=10),
+          rep(Exm_agg$Count[11], each=10),
+          rep(Exm_agg$Count[12], each=10))
+
+Richness_gal<-cbind(Richness_gal, se_gal)
+Richness_exm<-cbind(Richness_exm, se_exm)
+
+Richness_gal[is.na(Richness_gal)]=0
+Richness_exm[is.na(Richness_exm)]=0
+
+
+
+#Set level order for plots
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+
+#Plotting species richness over time
+#Galloway
+Species_Richness_gal<-ggplot(Richness_gal, aes(x=factor(month, level=level_order), y=Count, group=1)) +
+  geom_point(stat="summary", fun=mean, col="darkorange") +
+  geom_errorbar(stat="summary", aes(x=factor(month, level=level_order), ymin=Count-se_gal, ymax=Count+se_gal), width=0.5, col="darkorange") +
+  #geom_errorbar(stat="summary", data=Richness_gal$Count[which(Richness_gal$month!="December")], aes(x=factor(Richness_gal$month[-which(Richness_gal$month=="December")], level=level_order), ymin=Richness_gal$Count-0.5, ymax=Richness_gal$Count+0.5), width=0.5, fun="mean_se") +
+  scale_y_continuous(breaks=c(seq(0, 24, by = 2))) +
+  stat_summary(fun=mean, geom="line", col="darkorange") +
+  ggtitle("Species richness in cowpats") +
+  theme_bw() +
+  coord_cartesian(ylim=c(1,24)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(hjust = 0.5)) +
+  xlab("Month") +
+  ylab("Number of nematode species")
+
+Species_Richness_gal
+
+#Set level order for plots
+#level_order <- c("January","February","April", "June", "August","December") 
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+#Exmoor
+Species_Richness_exm<-ggplot(Richness_exm, aes(x=factor(month, level=level_order), y=Count, group=1)) + 
+  geom_point(stat="summary", fun=mean, col="darkred") +
+  geom_errorbar(stat="summary", aes(x=factor(month, level=level_order), ymin=Count-se_exm, ymax=Count+se_exm), width=0.5, col="darkred") +
+  #geom_point(stat="identity") +
+  scale_y_continuous(breaks=c(seq(0, 36, by = 2))) +
+  stat_summary(fun=mean, geom="line", col="darkred") +
+  ggtitle("Species richness in horse dung") +
+  theme_bw() +
+  coord_cartesian(ylim=c(1,36)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(hjust = 0.5)) +
+  xlab("Month") +
+  ylab("Number of nematode species")
+
+Species_Richness_exm
+
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+dummy<-data.frame("Count"=c(rep(0,each=12)),"month"=level_order)
+
+#Both
+Species_Richness<-ggplot(dummy, aes(x=factor(month, level=level_order), y=Count, group=1)) + 
+  geom_vline(xintercept="April",colour="white", linetype=2)+
+  geom_vline(xintercept=4.5,colour="darkgrey", linetype=2)+
+  geom_vline(xintercept=8.5,colour="darkgrey", linetype=2)+
+  geom_point(data=Richness_gal, stat="summary", fun=mean, colour="darkseagreen4") +
+  geom_errorbar(data=Richness_gal, stat="summary", aes(x=factor(month, level=level_order), ymin=Count-se_gal, ymax=Count+se_gal), width=0.5, colour="darkseagreen4") +
+  geom_point(data=Richness_exm, stat="summary", fun=mean, colour="dodgerblue3") +
+  geom_errorbar(data=Richness_exm, stat="summary", aes(x=factor(month, level=level_order), ymin=Count-se_exm, ymax=Count+se_exm), width=0.5, colour="dodgerblue3") +
+  scale_y_continuous(breaks=c(seq(0,40, by=2))) +
+  stat_summary(data=Richness_gal, fun=mean, geom="line", colour="darkseagreen4") +
+  stat_summary(data=Richness_exm, fun=mean, geom="line", colour="dodgerblue3") +
+  #ggtitle("Species richness - dung associated coleopterans") +
+  annotate("text", x=2.5, y=39, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=39, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=39, label="Late season", cex=3) +
+  #annotate("text", x=2.5, y=38, label=" ( *** ) ", cex=3) +
+  #annotate("text", x=6.5, y=38, label=" ( *** )", cex=3) +
+  #annotate("text", x=10.5, y=38, label=" ( *** )", cex=3) +
+  theme_bw() +
+  coord_cartesian(ylim=c(1,40)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=8, hjust = 0.5, face="italic"),axis.text.x = element_text(vjust=0.5,angle = 75)) +
+  xlab("Month") +
+  ylab("Number of species")
+
+Species_Richness
+
+ggarrange(Species_Richness, ncol = 1, nrow = 1)
+ggsave("COI/Local_analysis/output/plots/SpeciesRichness_nematodes_OTU_level.pdf", width=10, height=6)
+
+
+```

@@ -1,0 +1,57 @@
+---
+title: "Evaluation of plant cover"
+author: "Emil Ellegaard Thomassen"
+date: "`r Sys.Date()"
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r Setup R and load packages}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.height = 5.5,
+	message = FALSE,
+	warning = FALSE,
+	autodep = TRUE,
+	cache = TRUE,
+	cache.lazy = FALSE,
+	tidy = TRUE,
+	tidy.opts = list(width.cutoff = 80)
+)
+rm(list=ls())
+gc()
+Dir.Base <- here::here()
+
+
+
+# Installing packages as needed
+install.load.package <- function(x) {
+  if (!require(x, character.only = TRUE))
+    install.packages(x, repos='http://cran.us.r-project.org', dependencies = TRUE)
+  require(x, character.only = TRUE)
+}
+package_vec <- c("kableExtra", "tidyverse","png", "jpeg", "sp", "ncf","rgdal","MASS", "raster", "ggmap", "ggplot2", "BiodiversityR", "pheatmap", "knitr", "printr", "ade4", "vegan", "ROBITools", "ROBITaxonomy", "dplyr", "tidyr", "plotrix")
+sapply(package_vec, install.load.package)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, cache = TRUE, cache.lazy=FALSE, tidy.opts=list(width.cutoff=80),tidy=TRUE, fig.height=5.5)
+options(digits=4, width = 90)
+
+```
+
+```{r Evaluation of reads vs plant cover}
+
+cov<-read.csv2(file="ITS/MetaBarFlow/output/plant_cover_reads_DD.csv")
+colnames(cov)<-c("genus","reads","cover")
+
+up<-200000
+
+cov.plot<-ggplot(cov) + aes(x=cover, y=reads) + geom_point() + coord_cartesian(ylim=c(0,up)) + geom_smooth()
+
+cov.plot
+
+box.plot<-ggplot(cov,aes(x=cover, y=reads, group=cover)) + coord_cartesian(ylim=c(0,up)) + geom_boxplot()
+
+box.plot
+```
+

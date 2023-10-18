@@ -1,0 +1,1871 @@
+---
+title: "Statistics and ordination plots - ITS"
+author: "Emil Ellegaard Thomassen"
+date: "`r Sys.Date()"
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+
+#Statistical analyses
+
+```{r Setup R and load packages}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.height = 5.5,
+	message = FALSE,
+	warning = FALSE,
+	autodep = TRUE,
+	cache = TRUE,
+	cache.lazy = FALSE,
+	tidy = TRUE,
+	tidy.opts = list(width.cutoff = 80)
+)
+rm(list=ls())
+gc()
+Dir.Base <- here::here()
+
+
+
+# Installing packages as needed
+install.load.package <- function(x) {
+  if (!require(x, character.only = TRUE))
+    install.packages(x, repos='http://cran.us.r-project.org', dependencies = TRUE)
+  require(x, character.only = TRUE)
+}
+package_vec <- c("kableExtra", "tidyverse","png", "jpeg", "sp", "ncf","rgdal","MASS", "raster", "ggmap", "ggplot2", "BiodiversityR", "pheatmap", "knitr", "printr", "ade4", "vegan", "ROBITools", "ROBITaxonomy", "dplyr", "tidyr", "plotrix")
+sapply(package_vec, install.load.package)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, cache = TRUE, cache.lazy=FALSE, tidy.opts=list(width.cutoff=80),tidy=TRUE, fig.height=5.5)
+options(digits=4, width = 90)
+
+```
+
+
+```{r NDMS plots - genus level}
+
+#Libraries
+library(vegan)
+library(dplyr)
+library(ggplot2)
+library(ggalt)
+library(ggpubr)
+library(plot3D)
+#library(BiodiversityR)
+
+#Function for inverse normal transformation
+inormal <- function(x)
+{
+  qnorm((rank(x, na.last = "keep") - 0.5) / sum(!is.na(x)))
+}
+
+#This step plots CAP and NMDS plots of abundance and presence/absence data
+dataset <- readRDS("ITS/Local_analysis/output/RDS_files/dataset_final")
+
+par(mfrow=c(1,1))
+
+samples<-dataset@samples[,c("source", "habitat","month")]
+season_vec=c()
+for (i in 1:nrow(samples)) {
+  if (samples$month[i]=="January") {season_vec<-append(season_vec,"early")} 
+  else if (samples$month[i]=="February") {season_vec<-append(season_vec,"early")} 
+  else if (samples$month[i]=="March") {season_vec<-append(season_vec,"early")}
+  else if (samples$month[i]=="April") {season_vec<-append(season_vec,"early")}
+  else if (samples$month[i]=="May") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="June") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="July") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="August") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="September") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="October") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="November") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="December") {season_vec<-append(season_vec,"late")}
+}
+samples<-cbind(samples, "season"=season_vec)
+
+group<-c()
+for (i in 1:nrow(samples)) {
+  if (samples$source[i]=="galloway" && samples$season[i]=="early") {group<-append(group,"Galloway - Early")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="mid") {group<-append(group,"Galloway - Mid")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="late") {group<-append(group,"Galloway - Late")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="early") {group<-append(group,"Exmoor - Early")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="mid") {group<-append(group,"Exmoor - Mid")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="late") {group<-append(group,"Exmoor - Late")}
+}
+
+samples<-cbind(samples,group)
+
+reads<-dataset$reads
+colnames(reads)<-dataset@motus$genus_name
+
+#Aggregate on genera
+id<-colnames(reads)
+df_tmp<-t(reads)
+df_tmp<-as.data.frame(df_tmp)
+df_tmp<-cbind(id,df_tmp)
+
+df_tmp<-aggregate( . ~ id, data=df_tmp, sum)
+rownames(df_tmp)<-df_tmp$id
+df_tmp$id<-NULL
+reads<-t(df_tmp)
+
+#Evaluate number of dimensions
+
+mreads<-as.matrix(sqrt(reads))
+#mreads<-as.matrix(reads) #With or without transformation?
+nmds1D = metaMDS(mreads, distance = "bray", k=1)
+nmds2D = metaMDS(mreads, distance = "bray", k=2)
+nmds3D = metaMDS(mreads, distance = "bray", k=3)
+nmds4D = metaMDS(mreads, distance = "bray", k=4)
+nmds5D = metaMDS(mreads, distance = "bray", k=5)
+nmds6D = metaMDS(mreads, distance = "bray", k=6)
+nmds7D = metaMDS(mreads, distance = "bray", k=7)
+nmds8D = metaMDS(mreads, distance = "bray", k=8)
+nmds9D = metaMDS(mreads, distance = "bray", k=9)
+
+dim<-data.frame("dim"=c(1,2,3,4,5,6,7,8,9),"stress"=c(nmds1D$stress,nmds2D$stress,nmds3D$stress,nmds4D$stress,nmds5D$stress,nmds6D$stress,nmds7D$stress,nmds8D$stress,nmds9D$stress))
+
+plot(dim$dim,dim$stress, main="Stress values in nMDS ordination with increasing numbers of dimensions", cex.main=0.8)
+abline(h=0.20, col="red", lty=2)
+
+par(mfrow=c(2,2))
+stressplot(nmds1D, main="Stressplot K=1")
+stressplot(nmds2D, main="Stressplot K=2")
+stressplot(nmds3D, main="Stressplot K=3")
+stressplot(nmds4D, main="Stressplot K=4")
+stressplot(nmds5D, main="Stressplot K=5")
+stressplot(nmds6D, main="Stressplot K=6")
+stressplot(nmds7D, main="Stressplot K=7")
+stressplot(nmds8D, main="Stressplot K=8")
+stressplot(nmds9D, main="Stressplot K=9")
+
+#From stress vs. dimension plot, and stressplots, it seems that 3 dimensions will be appropriate (non-metric fit R2>0.95, stress<0.20)
+
+
+
+#Perform NMDS-plot of reads
+mreads<-as.matrix(sqrt(reads))
+#mreads<-as.matrix(reads) #With or without transformation?
+nmds1 = metaMDS(mreads, distance = "bray",k=3)
+nmds.scores = as.data.frame(vegan::scores(nmds1))
+head(nmds.scores)
+
+nmds.scores$Sample = row.names(samples)
+nmds.scores$Source = samples$source
+nmds.scores$Habitat = samples$habitat
+nmds.scores$Month = samples$month
+nmds.scores$Season = samples$season
+nmds.scores$Group = samples$group
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Source=factor(Source, levels=c("galloway","exmoor","Cattle","Horses")))
+
+nmds.scores$Source[which(nmds.scores$Source=="galloway")]<-"Cattle"
+nmds.scores$Source[which(nmds.scores$Source=="exmoor")]<-"Horses"
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Source=factor(Source, levels=c("Cattle","Horses")))
+
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Season=factor(Season, levels=c("early","mid", "late")))
+
+
+##1vs2
+gg1<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  #annotate("text", x=nmds1$species[1:(length(nmds1$species)/3)], y=nmds1$species[((length(nmds1$species)/3)+1):((length(nmds1$species)/3)*2)], label=rownames(nmds1$species)) + #TO add species locations - but very messy here!
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg1<-gg1 + theme(legend.position="top")
+
+plot(gg1)
+
+##1vs3
+gg2<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg2<-gg2 + theme(legend.position="top")
+
+plot(gg2)
+
+
+##2vs3
+gg3<-ggplot(nmds.scores, aes(x = NMDS2, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg3<-gg3 + theme(legend.position="top")
+
+plot(gg3)
+
+
+
+#3 dimensional plot
+par(mfrow=c(1,1))
+scatter3D(x=nmds.scores$NMDS1,y=nmds.scores$NMDS2,z=nmds.scores$NMDS3, colvar = as.integer(nmds.scores$Source), col = c("darkseagreen4","dodgerblue3"))
+
+
+
+
+
+
+
+
+#PERMANOVA
+
+#Galloway vs. Exmoor
+dist<-vegdist(mreads, method = "bray")
+
+
+##Test for homogeneity of multivariate variance
+
+#Galloway vs. exmoor
+dispersion <- betadisper(dist, group=samples$group)
+permutest(dispersion)
+plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
+
+#Homogenous multivariate dispersion (p-val=0.097)
+
+#Permanova performed
+perm<-adonis2(dist~source*season, data=samples, permutations = 999)
+perm
+
+
+
+
+
+
+#Galloway, difference between seasons
+
+##1vs2
+gg4<-ggplot(nmds.scores[which(nmds.scores$Source=="Cattle"),], aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 2, aes(colour = Season)) +
+  scale_color_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  geom_encircle(aes(fill = Group), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg4<-gg4 + theme(legend.position="top")
+
+plot(gg4)
+
+##1vs3
+gg5<-ggplot(nmds.scores[which(nmds.scores$Source=="Cattle"),], aes(x = NMDS1, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Season)) +
+  scale_color_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  geom_encircle(aes(fill = Group), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg5<-gg5 + theme(legend.position="top")
+
+plot(gg5)
+
+##2vs3
+gg6<-ggplot(nmds.scores[which(nmds.scores$Source=="Cattle"),], aes(x = NMDS2, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Season)) +
+  scale_color_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  geom_encircle(aes(fill = Group), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg6<-gg6 + theme(legend.position="top")
+
+plot(gg6)
+
+#Exmoor difference between seasons
+
+
+##1vs2
+gg7<-ggplot(nmds.scores[which(nmds.scores$Source=="Horses"),], aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 2, aes(colour = Season)) +
+  scale_color_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  geom_encircle(aes(fill = Group), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg7<-gg7 + theme(legend.position="top")
+
+plot(gg7)
+
+##1vs3
+gg8<-ggplot(nmds.scores[which(nmds.scores$Source=="Horses"),], aes(x = NMDS1, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Season)) +
+  scale_color_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  geom_encircle(aes(fill = Group), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg8<-gg8 + theme(legend.position="top")
+
+plot(gg8)
+
+
+##2vs3
+gg9<-ggplot(nmds.scores[which(nmds.scores$Source=="Horses"),], aes(x = NMDS2, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Season)) +
+  scale_color_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  geom_encircle(aes(fill = Group), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg9<-gg9 + theme(legend.position="top")
+
+plot(gg9)
+
+
+#Early, difference between sources
+gg10<-ggplot(nmds.scores[which(nmds.scores$Season=="early"),], aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Early season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg10<-gg10 + theme(legend.position="top")
+
+plot(gg10)
+
+gg11<-ggplot(nmds.scores[which(nmds.scores$Season=="early"),], aes(x = NMDS1, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Early season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg11<-gg11 + theme(legend.position="top")
+
+plot(gg11)
+
+gg12<-ggplot(nmds.scores[which(nmds.scores$Season=="early"),], aes(x = NMDS2, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Early season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg12<-gg12 + theme(legend.position="top")
+
+plot(gg12)
+
+#Mid, difference between sources
+gg13<-ggplot(nmds.scores[which(nmds.scores$Season=="mid"),], aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Mid season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg13<-gg13 + theme(legend.position="top")
+
+plot(gg13)
+
+gg14<-ggplot(nmds.scores[which(nmds.scores$Season=="mid"),], aes(x = NMDS1, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Mid season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg14<-gg14 + theme(legend.position="top")
+
+plot(gg14)
+
+gg15<-ggplot(nmds.scores[which(nmds.scores$Season=="mid"),], aes(x = NMDS2, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Mid season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg15<-gg15 + theme(legend.position="top")
+
+plot(gg15)
+
+#Late, difference between sources
+gg16<-ggplot(nmds.scores[which(nmds.scores$Season=="late"),], aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Late season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg16<-gg16 + theme(legend.position="top")
+
+plot(gg16)
+
+gg17<-ggplot(nmds.scores[which(nmds.scores$Season=="late"),], aes(x = NMDS1, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Late season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg17<-gg17 + theme(legend.position="top")
+
+plot(gg17)
+
+gg18<-ggplot(nmds.scores[which(nmds.scores$Season=="late"),], aes(x = NMDS2, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Late season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.8),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg18<-gg18 + theme(legend.position="top")
+
+plot(gg18)
+
+gg_plants<-ggarrange(gg1,gg4,gg7, labels = c("B", "C","D"), ncol = 3, nrow = 1)
+saveRDS(gg_plants, file="ITS/Local_analysis/output/RDS_files/nMDS_plants")
+
+gg_plants2<-ggarrange(gg10,gg13,gg16, labels = c("E","F","G"), ncol = 3, nrow = 1)
+saveRDS(gg_plants2, file="ITS/Local_analysis/output/RDS_files/nMDS_plants2")
+
+
+ggarrange(gg2,gg5,gg8,gg3,gg6,gg9,gg11,gg14,gg17,gg12,gg15,gg18, labels = c("A","B","C","D","E","F","G","H","I","J","K","L"), ncol = 3, nrow = 4)
+ggsave("ITS/Local_analysis/output/figures/NMDS_third_axis.png",width=10, height=12)
+
+
+
+
+
+#Create RDS with p.values from PERMANOVA
+
+perm.out<-perm
+
+write.table(perm.out, file="ITS/Local_analysis/output/textfiles/permanova_output_plants.txt", sep="\t",row.names = TRUE, col.names = TRUE)
+
+saveRDS(perm.out, file="ITS/Local_analysis/output/RDS_files/permanova_output_plants")
+
+
+
+
+
+#Identify potential outlier
+out1<-row.names(nmds.scores)[which.max(nmds.scores$NMDS2)]
+out1.idx<-which.max(nmds.scores$NMDS2)
+#remove and run again
+mreads.out<-mreads[-out1.idx,]
+samples.out<-samples[-out1.idx,]
+
+#Run nMDS again
+#Perform NMDS-plot of reads
+
+nmds1 = metaMDS(mreads.out, distance = "bray", k=3)
+nmds.scores = as.data.frame(vegan::scores(nmds1))
+head(nmds.scores)
+
+nmds.scores$Sample = row.names(samples.out)
+nmds.scores$Source = samples.out$source
+nmds.scores$Habitat = samples.out$habitat
+nmds.scores$Month = samples.out$month
+nmds.scores$Season = samples.out$season
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Source=factor(Source, levels=c("galloway","exmoor")))
+
+##1vs2
+gg1.out<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  theme_bw()
+
+gg1.out<-gg1.out + theme(legend.position="top")
+
+plot(gg1.out)
+
+##1vs3
+gg2.out<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS3)) + 
+  geom_point(size = 3, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  theme_bw()
+
+gg2.out<-gg2.out + theme(legend.position="top")
+
+plot(gg2.out)
+
+
+##2vs3
+gg3.out<-ggplot(nmds.scores, aes(x = NMDS2, y = NMDS3)) + 
+  geom_point(size = 3, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  theme_bw()
+
+gg3.out<-gg3.out + theme(legend.position="top")
+
+plot(gg3.out)
+
+
+
+
+
+```
+
+```{r all NDMS plot}
+
+#Libraries
+library(vegan)
+library(dplyr)
+library(ggplot2)
+library(ggalt)
+library(ggpubr)
+#library(BiodiversityR)
+
+#This step plots CAP and NMDS plots of abundance and presence/absence data
+dataset <- readRDS("ITS/Local_analysis/output/RDS_files/dataset_final")
+
+par(mfrow=c(1,1))
+
+samples<-dataset@samples[,c("source", "habitat","month")]
+season_vec=c()
+for (i in 1:nrow(samples)) {
+  if (samples$month[i]=="January") {season_vec<-append(season_vec,"early")} 
+  else if (samples$month[i]=="February") {season_vec<-append(season_vec,"early")} 
+  else if (samples$month[i]=="March") {season_vec<-append(season_vec,"early")}
+  else if (samples$month[i]=="April") {season_vec<-append(season_vec,"early")}
+  else if (samples$month[i]=="May") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="June") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="July") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="August") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="September") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="October") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="November") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="December") {season_vec<-append(season_vec,"late")}
+}
+samples<-cbind(samples, "season"=season_vec)
+
+group<-c()
+for (i in 1:nrow(samples)) {
+  if (samples$source[i]=="galloway" && samples$season[i]=="early") {group<-append(group,"Galloway - Early")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="mid") {group<-append(group,"Galloway - Mid")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="late") {group<-append(group,"Galloway - Late")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="early") {group<-append(group,"Exmoor - Early")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="mid") {group<-append(group,"Exmoor - Mid")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="late") {group<-append(group,"Exmoor - Late")}
+}
+
+samples<-cbind(samples,group)
+
+reads<-dataset$reads
+colnames(reads)<-dataset@motus$genus_name
+
+#Aggregate on genera
+id<-colnames(reads)
+df_tmp<-t(reads)
+df_tmp<-as.data.frame(df_tmp)
+df_tmp<-cbind(id,df_tmp)
+
+df_tmp<-aggregate( . ~ id, data=df_tmp, sum)
+rownames(df_tmp)<-df_tmp$id
+df_tmp$id<-NULL
+reads<-t(df_tmp)
+
+#Evaluate number of dimensions
+
+mreads<-as.matrix(sqrt(reads))
+#mreads<-as.matrix(reads) #With or without transformation?
+nmds1D = metaMDS(mreads, distance = "bray", k=1)
+nmds2D = metaMDS(mreads, distance = "bray", k=2)
+nmds3D = metaMDS(mreads, distance = "bray", k=3)
+nmds4D = metaMDS(mreads, distance = "bray", k=4)
+nmds5D = metaMDS(mreads, distance = "bray", k=5)
+nmds6D = metaMDS(mreads, distance = "bray", k=6)
+nmds7D = metaMDS(mreads, distance = "bray", k=7)
+nmds8D = metaMDS(mreads, distance = "bray", k=8)
+nmds9D = metaMDS(mreads, distance = "bray", k=9)
+
+dim<-data.frame("dim"=c(1,2,3,4,5,6,7,8,9),"stress"=c(nmds1D$stress,nmds2D$stress,nmds3D$stress,nmds4D$stress,nmds5D$stress,nmds6D$stress,nmds7D$stress,nmds8D$stress,nmds9D$stress))
+
+plot(dim$dim,dim$stress, main="Stress values in nMDS ordination with increasing numbers of dimensions", cex.main=0.8)
+abline(h=0.20, col="red", lty=2)
+
+par(mfrow=c(2,2))
+stressplot(nmds1D, main="Stressplot K=1")
+stressplot(nmds2D, main="Stressplot K=2")
+stressplot(nmds3D, main="Stressplot K=3")
+stressplot(nmds4D, main="Stressplot K=4")
+stressplot(nmds5D, main="Stressplot K=5")
+stressplot(nmds6D, main="Stressplot K=6")
+stressplot(nmds7D, main="Stressplot K=7")
+stressplot(nmds8D, main="Stressplot K=8")
+stressplot(nmds9D, main="Stressplot K=9")
+
+#From stress vs. dimension plot, and stressplots, it seems that 3 dimensions will be appropriate (non-metric fit R2>0.95, stress<0.20)
+
+
+
+#Perform NMDS-plot of reads
+mreads<-as.matrix(sqrt(reads))
+#mreads<-as.matrix(reads) #With or without transformation?
+nmds = metaMDS(mreads, distance = "bray",k=3)
+nmds.scores = as.data.frame(vegan::scores(nmds))
+head(nmds.scores)
+
+nmds.scores$Sample = row.names(samples)
+nmds.scores$Source = samples$source
+nmds.scores$Habitat = samples$habitat
+nmds.scores$Month = samples$month
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Source=factor(Source, levels=c("galloway","exmoor")))
+
+gg1<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  theme_bw()
+
+plot(gg1)
+
+#PERMANOVA
+
+#Galloway vs. Exmoor
+dist<-vegdist(mreads, method = "bray")
+
+##Test for homogeneity of multivariate variance
+#pred<-as.data.frame(dataset@samples$source)
+#names(pred)[1] <- 'source'
+#row.names(pred)<-(row.names(dataset@samples))
+#norm<-biotools::boxM(as.matrix(dist), grouping = pred$source)
+#norm
+
+perm<-adonis2(dist~dataset@samples$source, permutations = 999)
+perm
+
+
+
+
+# https://jkzorz.github.io/2019/06/06/NMDS.html 
+# https://stackoverflow.com/questions/52289812/group-geom-point-with-the-geom-polygon/52290514?fbclid=IwAR0xPB5W9fZc3dYb8868fJ_SiKgb9WPXVofZsrn-HsfJd1KEoVRkW52qQk0
+# ANOSIM statistical test of differences between community data: https://jkzorz.github.io/2019/06/11/ANOSIM-test.html
+#PERMANOVA: https://archetypalecology.wordpress.com/2018/02/21/permutational-multivariate-analysis-of-variance-permanova-in-r-preliminary/
+
+#Presence/Absence
+#Perform NMDS-plot of reads
+reads[reads>0]<-1
+#mreads<-as.matrix(sqrt(reads))
+mreads<-as.matrix(reads) #transformation doesn't matter for presence absence data
+nmds = metaMDS(mreads, distance = "bray",k=3)
+nmds.scores = as.data.frame(vegan::scores(nmds))
+head(nmds.scores)
+
+nmds.scores$Sample = row.names(samples)
+nmds.scores$Source = samples$source
+nmds.scores$Habitat = samples$habitat
+nmds.scores$Month = samples$month
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Source=factor(Source, levels=c("galloway", "exmoor")))
+
+gg2<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  theme_bw()
+
+plot(gg2)
+
+# https://jkzorz.github.io/2019/06/06/NMDS.html 
+# https://stackoverflow.com/questions/52289812/group-geom-point-with-the-geom-polygon/52290514?fbclid=IwAR0xPB5W9fZc3dYb8868fJ_SiKgb9WPXVofZsrn-HsfJd1KEoVRkW52qQk0
+
+#Perform NMDS-plot of reads
+reads<-dataset$reads
+colnames(reads)<-dataset@motus$genus_name
+
+#Aggregate on genera
+id<-colnames(reads)
+df_tmp<-t(reads)
+df_tmp<-as.data.frame(df_tmp)
+df_tmp<-cbind(id,df_tmp)
+
+df_tmp<-aggregate( . ~ id, data=df_tmp, sum)
+rownames(df_tmp)<-df_tmp$id
+df_tmp$id<-NULL
+reads<-t(df_tmp)
+
+mreads<-as.matrix(sqrt(reads))
+#mreads<-as.matrix(reads) #With or without transformation?
+nmds = metaMDS(mreads, distance = "bray",k=3)
+nmds.scores = as.data.frame(vegan::scores(nmds))
+head(nmds.scores)
+
+nmds.scores$Sample = row.names(samples)
+nmds.scores$Source = samples$source
+nmds.scores$Habitat = samples$habitat
+nmds.scores$Month = samples$month
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Habitat=factor(Habitat, levels=c("open","forest")))
+
+gg3<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Habitat)) +
+  scale_color_manual(values=c("gold1","burlywood4")) +
+  geom_encircle(aes(fill = Habitat), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("gold1","burlywood4")) +
+  theme_bw()
+
+plot(gg3)
+
+# https://jkzorz.github.io/2019/06/06/NMDS.html 
+# https://stackoverflow.com/questions/52289812/group-geom-point-with-the-geom-polygon/52290514?fbclid=IwAR0xPB5W9fZc3dYb8868fJ_SiKgb9WPXVofZsrn-HsfJd1KEoVRkW52qQk0
+
+
+#Presence/Absence
+#Perform NMDS-plot of reads
+reads[reads>0]<-1
+#mreads<-as.matrix(sqrt(reads))
+mreads<-as.matrix(reads) #transformation doesn't matter for presence absence data
+nmds = metaMDS(mreads, distance = "bray",k=3)
+nmds.scores = as.data.frame(vegan::scores(nmds))
+head(nmds.scores)
+
+nmds.scores$Sample = row.names(samples)
+nmds.scores$Source = samples$source
+nmds.scores$Habitat = samples$habitat
+nmds.scores$Month = samples$month
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Habitat=factor(Habitat, levels=c("open", "forest")))
+
+gg4<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Habitat)) +
+  scale_color_manual(values=c("gold1","burlywood4")) +
+  geom_encircle(aes(fill = Habitat), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("gold1","burlywood4")) +
+  theme_bw()
+
+plot(gg4)
+
+
+#Perform NMDS-plot of reads
+reads<-dataset$reads
+colnames(reads)<-dataset@motus$genus_name
+
+#Aggregate on genera
+id<-colnames(reads)
+df_tmp<-t(reads)
+df_tmp<-as.data.frame(df_tmp)
+df_tmp<-cbind(id,df_tmp)
+
+df_tmp<-aggregate( . ~ id, data=df_tmp, sum)
+rownames(df_tmp)<-df_tmp$id
+df_tmp$id<-NULL
+reads<-t(df_tmp)
+
+mreads<-as.matrix(sqrt(reads))
+#mreads<-as.matrix(reads) #With or without transformation?
+nmds = metaMDS(mreads, distance = "bray",k=3)
+nmds.scores = as.data.frame(vegan::scores(nmds))
+head(nmds.scores)
+
+nmds.scores$Sample = row.names(samples)
+nmds.scores$Source = samples$source
+nmds.scores$Habitat = samples$habitat
+nmds.scores$Month = samples$month
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Month=factor(Month, levels=c("January","February","March","April","May","June","July","August","September","October","November","December")))
+
+gg5<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Month)) +
+  geom_encircle(aes(fill = Month), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  theme_bw()
+
+plot(gg5)
+
+# https://jkzorz.github.io/2019/06/06/NMDS.html 
+# https://stackoverflow.com/questions/52289812/group-geom-point-with-the-geom-polygon/52290514?fbclid=IwAR0xPB5W9fZc3dYb8868fJ_SiKgb9WPXVofZsrn-HsfJd1KEoVRkW52qQk0
+
+
+#Presence/Absence
+#Perform NMDS-plot of reads
+reads[reads>0]<-1
+#mreads<-as.matrix(sqrt(reads))
+mreads<-as.matrix(reads) #transformation doesn't matter for presence absence data
+nmds = metaMDS(mreads, distance = "bray",k=3)
+nmds.scores = as.data.frame(vegan::scores(nmds))
+head(nmds.scores)
+
+nmds.scores$Sample = row.names(samples)
+nmds.scores$Source = samples$source
+nmds.scores$Habitat = samples$habitat
+nmds.scores$Month = samples$month
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Month=factor(Month, levels=c("January","February","March","April","May","June","July","August","September","October","November","December")))
+
+gg6<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Month)) +
+  geom_encircle(aes(fill = Month), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  theme_bw()
+
+plot(gg6)
+
+#Monthly, separated in Exmoor and Galloway
+
+reads<-dataset$reads
+colnames(reads)<-dataset@motus$genus_name
+
+#Aggregate on genera
+id<-colnames(reads)
+df_tmp<-t(reads)
+df_tmp<-as.data.frame(df_tmp)
+df_tmp<-cbind(id,df_tmp)
+
+df_tmp<-aggregate( . ~ id, data=df_tmp, sum)
+rownames(df_tmp)<-df_tmp$id
+df_tmp$id<-NULL
+reads<-t(df_tmp)
+
+reads<-cbind(reads, dataset@samples$source)
+
+
+reads_gal<-reads[which(reads[,630]==3),]
+reads_exm<-reads[which(reads[,630]==2),]
+
+samples_gal<-samples[which(samples$source=="galloway"),]
+samples_exm<-samples[which(samples$source=="exmoor"),]
+
+#For Galloway
+mreads<-as.matrix(sqrt(reads_gal))
+#mreads<-as.matrix(reads) #With or without transformation?
+nmds = metaMDS(mreads, distance = "bray",k=3)
+nmds.scores = as.data.frame(vegan::scores(nmds))
+head(nmds.scores)
+
+nmds.scores$Sample = row.names(samples_gal)
+nmds.scores$Source = samples_gal$source
+nmds.scores$Habitat = samples_gal$habitat
+nmds.scores$Month = samples_gal$month
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Month=factor(Month, levels=c("January","February","March","April","May","June","July","August","September","October","November","December")))
+
+gg7<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Month)) +
+  scale_color_manual(values=c('#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#42d4f4', '#f032e6', '#fabed4', '#469990', '#dcbeff', '#9A6324', '#fffac8')) +
+  geom_encircle(aes(fill = Month), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c('#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#42d4f4', '#f032e6', '#fabed4', '#469990', '#dcbeff', '#9A6324', '#fffac8')) +
+  coord_cartesian(xlim=c(-2,2.2),ylim=c(-1,1)) +
+  theme_bw()
+
+plot(gg7)
+
+#PERMANOVA
+
+#Month, galloway
+
+dataset_gal<-subset(dataset, dataset@samples$samples.GalSamples)
+
+greads<-cbind(as.data.frame(mreads), "source"=as.factor(dataset@samples$source))
+gal_reads<-greads[greads$source=="galloway",]
+gal_reads<-as.matrix(gal_reads[,1:ncol(gal_reads)-1])
+
+
+dist2<-vegdist(gal_reads, method = "bray")
+
+perm2<-adonis2(dist2~dataset_gal@samples$month, permutations=999)
+perm2
+
+
+#Presence/absence
+reads_gal[reads_gal>0]<-1
+
+mreads<-as.matrix(sqrt(reads_gal))
+#mreads<-as.matrix(reads) #With or without transformation?
+nmds = metaMDS(mreads, distance = "bray",k=3)
+nmds.scores = as.data.frame(vegan::scores(nmds))
+head(nmds.scores)
+
+nmds.scores$Sample = row.names(samples_gal)
+nmds.scores$Source = samples_gal$source
+nmds.scores$Habitat = samples_gal$habitat
+nmds.scores$Month = samples_gal$month
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Month=factor(Month, levels=c("January","February","March","April","May","June","July","August","September","October","November","December")))
+
+gg8<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Month)) +
+  scale_color_manual(values=c('#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#42d4f4', '#f032e6', '#fabed4', '#469990', '#dcbeff', '#9A6324', '#fffac8')) +
+  geom_encircle(aes(fill = Month), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c('#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#42d4f4', '#f032e6', '#fabed4', '#469990', '#dcbeff', '#9A6324', '#fffac8')) +
+  coord_cartesian(xlim=c(-1,2.2),ylim=c(-1,1)) +
+  theme_bw()
+
+plot(gg8)
+
+
+#For Exmoor
+mreads<-as.matrix(sqrt(reads_exm))
+#mreads<-as.matrix(reads) #With or without transformation?
+nmds = metaMDS(mreads, distance = "bray",k=3)
+nmds.scores = as.data.frame(vegan::scores(nmds))
+head(nmds.scores)
+
+nmds.scores$Sample = row.names(samples_exm)
+nmds.scores$Source = samples_exm$source
+nmds.scores$Habitat = samples_exm$habitat
+nmds.scores$Month = samples_exm$month
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Month=factor(Month, levels=c("January","February","March","April","May","June","July","August","September","October","November","December")))
+
+gg9<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Month)) +
+  scale_color_manual(values=c('#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#42d4f4', '#f032e6', '#fabed4', '#469990', '#dcbeff', '#9A6324', '#fffac8')) +
+  geom_encircle(aes(fill = Month), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c('#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#42d4f4', '#f032e6', '#fabed4', '#469990', '#dcbeff', '#9A6324', '#fffac8')) +
+  coord_cartesian(xlim=c(-2,2.2),ylim=c(-1,1)) +
+  theme_bw()
+
+plot(gg9)
+
+#PERMANOVA
+#Month, exmoor
+
+dataset_exm<-subset(dataset, dataset@samples$samples.ExmSamples)
+
+greads<-cbind(as.data.frame(mreads), "source"=as.factor(dataset@samples$source))
+exm_reads<-greads[greads$source=="exmoor",]
+exm_reads<-as.matrix(exm_reads[,1:ncol(exm_reads)-1])
+
+
+dist3<-vegdist(exm_reads, method = "bray")
+
+perm3<-adonis2(dist3~dataset_exm@samples$month, permutations=999)
+perm3
+
+#Presence/absence
+reads_exm[reads_exm>0]<-1
+
+mreads<-as.matrix(sqrt(reads_exm))
+#mreads<-as.matrix(reads) #With or without transformation?
+nmds = metaMDS(mreads, distance = "bray",k=3)
+nmds.scores = as.data.frame(vegan::scores(nmds))
+head(nmds.scores)
+
+nmds.scores$Sample = row.names(samples_exm)
+nmds.scores$Source = samples_exm$source
+nmds.scores$Habitat = samples_exm$habitat
+nmds.scores$Month = samples_exm$month
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Month=factor(Month, levels=c("January","February","March","April","May","June","July","August","September","October","November","December")))
+
+gg10<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Month)) +
+  scale_color_manual(values=c('#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#42d4f4', '#f032e6', '#fabed4', '#469990', '#dcbeff', '#9A6324', '#fffac8')) +
+  geom_encircle(aes(fill = Month), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c('#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#42d4f4', '#f032e6', '#fabed4', '#469990', '#dcbeff', '#9A6324', '#fffac8')) +
+  coord_cartesian(xlim=c(-1,2.2),ylim=c(-1,1)) +
+  theme_bw()
+
+plot(gg10)
+
+##Functionality
+#
+#dataset_func<-readRDS("Data_files/Generated_files/ITS/Functional_level/RDS_files/dataset_final")
+#par(mfrow=c(1,1))
+#
+#samples<-dataset_func@samples[,c("source", "habitat","month")]
+#
+#reads<-dataset_func$reads
+
+
+#Perform NMDS-plot of reads
+#mreads<-as.matrix(sqrt(reads))
+##mreads<-as.matrix(reads) #With or without transformation?
+#nmds = metaMDS(mreads, distance = "bray")
+#nmds.scores = as.data.frame(vegan::scores(nmds))
+#head(nmds.scores)
+#
+#nmds.scores$Sample = row.names(samples)
+#nmds.scores$Source = samples$source
+#nmds.scores$Habitat = samples$habitat
+#nmds.scores$Month = samples$month
+
+#nmds.scores<-nmds.scores %>%
+#  dplyr::mutate(Source=factor(Source, levels=c("galloway","exmoor")))
+
+#gg11<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+#  geom_point(size = 3, aes(colour = Source)) +
+#  scale_color_manual(values=c("springgreen4","salmon4")) +
+#  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+#                alpha = 0.2, color = "black", show.legend = FALSE) +
+#  scale_fill_manual(values=c("springgreen4","salmon4")) +
+#  theme_bw()
+
+#plot(gg11)
+
+#Presence/absence
+
+#reads[reads>0]<-1
+
+##Perform NMDS-plot of reads
+##mreads<-as.matrix(sqrt(reads))
+#mreads<-as.matrix(reads) #With or without transformation?
+#nmds = metaMDS(mreads, distance = "bray")
+#nmds.scores = as.data.frame(vegan::scores(nmds))
+#head(nmds.scores)
+
+#nmds.scores$Sample = row.names(samples)
+#nmds.scores$Source = samples$source
+#nmds.scores$Habitat = samples$habitat
+#nmds.scores$Month = samples$month
+
+#nmds.scores<-nmds.scores %>%
+#  dplyr::mutate(Source=factor(Source, levels=c("galloway","exmoor")))
+
+#gg12<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+#  geom_point(size = 3, aes(colour = Source)) +
+#  scale_color_manual(values=c("springgreen4","salmon4")) +
+#  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+#                alpha = 0.2, color = "black", show.legend = FALSE) +
+#  scale_fill_manual(values=c("springgreen4","salmon4")) +
+#  theme_bw()
+
+#plot(gg12)
+
+###Grouped by source and season
+
+#Perform NMDS-plot of reads
+mreads<-as.matrix(sqrt(reads))
+#mreads<-as.matrix(reads) #With or without transformation?
+nmds = metaMDS(mreads, distance = "bray",k=3)
+nmds.scores = as.data.frame(vegan::scores(nmds))
+head(nmds.scores)
+
+nmds.scores$Sample = row.names(samples)
+nmds.scores$Source = samples$source
+nmds.scores$Habitat = samples$habitat
+nmds.scores$Month = samples$month
+nmds.scores$Season = samples$season
+nmds.scores$Group = samples$group
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Group=factor(Group, levels=c("Galloway - Early","Galloway - Mid", "Galloway - Late","Exmoor - Early","Exmoor - Mid", "Exmoor - Late")))
+
+gg13<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Group)) +
+  scale_color_manual(values=c("gold1","red2","darkblue","darkorange1","indianred3","dodgerblue")) +
+  geom_encircle(aes(fill = Group), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("gold1","red2","darkblue","darkorange1","indianred3","dodgerblue")) +
+  theme_bw()
+
+plot(gg13)
+
+#PERMANOVA
+
+#Galloway vs. Exmoor
+dist<-vegdist(mreads, method = "bray")
+
+##Test for homogeneity of multivariate variance
+#pred<-as.data.frame(dataset@samples$source)
+#names(pred)[1] <- 'source'
+#row.names(pred)<-(row.names(dataset@samples))
+#norm<-biotools::boxM(as.matrix(dist), grouping = pred$source)
+#norm
+
+perm<-adonis2(dist~dataset@samples$source, permutations = 999)
+perm
+
+
+
+
+# https://jkzorz.github.io/2019/06/06/NMDS.html 
+# https://stackoverflow.com/questions/52289812/group-geom-point-with-the-geom-polygon/52290514?fbclid=IwAR0xPB5W9fZc3dYb8868fJ_SiKgb9WPXVofZsrn-HsfJd1KEoVRkW52qQk0
+# ANOSIM statistical test of differences between community data: https://jkzorz.github.io/2019/06/11/ANOSIM-test.html
+#PERMANOVA: https://archetypalecology.wordpress.com/2018/02/21/permutational-multivariate-analysis-of-variance-permanova-in-r-preliminary/
+
+#Presence/Absence
+#Perform NMDS-plot of reads
+reads[reads>0]<-1
+#mreads<-as.matrix(sqrt(reads))
+mreads<-as.matrix(reads) #transformation doesn't matter for presence absence data
+nmds = metaMDS(mreads, distance = "bray",k=3)
+nmds.scores = as.data.frame(vegan::scores(nmds))
+head(nmds.scores)
+
+nmds.scores$Sample = row.names(samples)
+nmds.scores$Source = samples$source
+nmds.scores$Habitat = samples$habitat
+nmds.scores$Month = samples$month
+nmds.scores$Season = samples$season
+nmds.scores$Group = samples$group
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Group=factor(Group, levels=c("Galloway - Early","Galloway - Mid", "Galloway - Late","Exmoor - Early","Exmoor - Mid", "Exmoor - Late")))
+
+gg14<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = group)) +
+  scale_color_manual(values=c("gold1","red2","darkblue","darkorange1","indianred3","dodgerblue")) +
+  geom_encircle(aes(fill = group), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("gold1","red2","darkblue","darkorange1","indianred3","dodgerblue")) +
+  theme_bw()
+
+plot(gg14)
+
+
+
+```
+
+
+```{r Models}
+
+gal_func<-readRDS("ITS/Local_analysis/output/RDS_files/gal_func")
+exm_func<-readRDS("ITS/Local_analysis/output/RDS_files/exm_func")
+
+gal_func<-cbind(gal_func,"source"=c(rep("galloway",each=nrow(gal_func))))
+exm_func<-cbind(exm_func,"source"=c(rep("exmoor",each=nrow(exm_func))))
+both_func<-rbind(gal_func,exm_func)
+
+rich<-readRDS("ITS/Local_analysis/output/RDS_files/Richness_df_genera")
+rich<-rich[,c(1:2)]
+colnames(rich)=c("sample","count")
+
+df_func<-data.frame("graminoids"=as.numeric(1),"forbs"=as.numeric(1),"trees"=as.numeric(1),"shrubs"=as.numeric(1),"unknown"=as.numeric(1))
+for (i in unique(both_func$sample)) {
+  print (i)
+  g<-sum(both_func$count[with(both_func, sample == i & type == "Graminoids")])/both_func$totalreads[which(both_func$sample==i)][1]
+  f<-sum(both_func$count[with(both_func, sample == i & type == "Forbs")])/both_func$totalreads[which(both_func$sample==i)][1]
+  t<-sum(both_func$count[with(both_func, sample == i & type == "Trees")])/both_func$totalreads[which(both_func$sample==i)][1]
+  s<-sum(both_func$count[with(both_func, sample == i & type == "Shrubs")])/both_func$totalreads[which(both_func$sample==i)][1]
+  u<-sum(both_func$count[with(both_func, sample == i & type == "Unknown")])/both_func$totalreads[which(both_func$sample==i)][1]
+  df_func<-rbind(df_func, c(as.numeric(g),as.numeric(f),as.numeric(t),as.numeric(s),as.numeric(u)))
+}
+
+df_func<-df_func[-1,]
+rownames(df_func)<-unique(both_func$sample)
+df_func<-cbind(df_func,"total"=rowSums(df_func))
+df_func<-cbind(df_func,"sample"=unique(both_func$sample))
+
+
+both_func$month<-as.factor(both_func$month)
+both_func$type<-as.factor(both_func$type)
+both_func$source<-as.factor(both_func$source)
+
+meta<-aggregate(. ~ sample, data=both_func, FUN=mean)
+
+meta$source[meta$source==2]="galloway"
+meta$source[meta$source==1]="exmoor"
+meta$month[meta$month==5]="January"
+meta$month[meta$month==4]="February"
+meta$month[meta$month==8]="March"
+meta$month[meta$month==1]="April"
+meta$month[meta$month==9]="May"
+meta$month[meta$month==7]="June"
+meta$month[meta$month==6]="July"
+meta$month[meta$month==2]="August"
+meta$month[meta$month==12]="September"
+meta$month[meta$month==11]="October"
+meta$month[meta$month==10]="November"
+meta$month[meta$month==3]="December"
+
+df_func<-merge(df_func,meta, by="sample")
+df_func<-df_func[,-c(8:9,12:13)]
+
+
+month_vec=c()
+for (i in 1:nrow(df_func)) {
+  if (df_func$month[i]=="January") {month_vec<-append(month_vec,1)} 
+  else if (df_func$month[i]=="February") {month_vec<-append(month_vec,2)} 
+  else if (df_func$month[i]=="March") {month_vec<-append(month_vec,3)}
+  else if (df_func$month[i]=="April") {month_vec<-append(month_vec,4)}
+  else if (df_func$month[i]=="May") {month_vec<-append(month_vec,5)}
+  else if (df_func$month[i]=="June") {month_vec<-append(month_vec,6)}
+  else if (df_func$month[i]=="July") {month_vec<-append(month_vec,7)}
+  else if (df_func$month[i]=="August") {month_vec<-append(month_vec,8)}
+  else if (df_func$month[i]=="September") {month_vec<-append(month_vec,9)}
+  else if (df_func$month[i]=="October") {month_vec<-append(month_vec,10)}
+  else if (df_func$month[i]=="November") {month_vec<-append(month_vec,11)}
+  else if (df_func$month[i]=="December") {month_vec<-append(month_vec,12)}
+  
+}
+season_vec=c()
+for (i in 1:nrow(df_func)) {
+  if (df_func$month[i]=="January") {season_vec<-append(season_vec,"early")} 
+  else if (df_func$month[i]=="February") {season_vec<-append(season_vec,"early")} 
+  else if (df_func$month[i]=="March") {season_vec<-append(season_vec,"early")}
+  else if (df_func$month[i]=="April") {season_vec<-append(season_vec,"early")}
+  else if (df_func$month[i]=="May") {season_vec<-append(season_vec,"mid")}
+  else if (df_func$month[i]=="June") {season_vec<-append(season_vec,"mid")}
+  else if (df_func$month[i]=="July") {season_vec<-append(season_vec,"mid")}
+  else if (df_func$month[i]=="August") {season_vec<-append(season_vec,"mid")}
+  else if (df_func$month[i]=="September") {season_vec<-append(season_vec,"late")}
+  else if (df_func$month[i]=="October") {season_vec<-append(season_vec,"late")}
+  else if (df_func$month[i]=="November") {season_vec<-append(season_vec,"late")}
+  else if (df_func$month[i]=="December") {season_vec<-append(season_vec,"late")}
+  
+}
+
+df<-cbind(df_func, "month_number"=as.numeric(month_vec), "season"=as.factor(season_vec))
+df<-cbind(df,rich)
+df<-df[,-13]
+df$month<-as.factor(df$month)
+df$source<-as.factor(df$source)
+
+saveRDS(df, "ITS/Local_analysis/output/RDS_files/df_models")
+
+par(mfrow=c(2,2))
+hist(df$trees)
+hist(df$forbs)
+hist(df$graminoids)
+hist(df$shrubs)
+
+
+#Modelling richness
+
+model1.1<-glm(count~source*season, family="poisson",data=df)
+summary(model1.1)
+#plot(model1.1)
+
+model1.2<-glm.nb(count~source*season,data=df)
+summary(model1.2)
+#plot(model1.2)
+
+redu1<-glm.nb(count~source+season, data=df)
+summary(redu1)
+
+redu2<-glm.nb(count~season, data=df)
+summary(redu2)
+
+redu3<-glm.nb(count~source, data=df)
+summary(redu3)
+
+anova(redu1,redu2,redu3,model1.2,test="Chisq")
+
+#Modelling trees
+
+model1.1<-glm(trees~source*season, family="poisson",data=df)
+summary(model1.1)
+#plot(model1.1)
+
+redu1<-glm(trees~source+season, family="poisson", data=df)
+summary(redu1)
+
+redu2<-glm(trees~season, family="poisson", data=df)
+summary(redu2)
+
+redu3<-glm(trees~source, family="poisson", data=df)
+summary(redu3)
+
+anova(redu1,redu2,redu3,model1.1,test="Chisq")
+
+#Modelling shrubs
+
+model1.1<-glm(shrubs~source*season, family="poisson",data=df)
+summary(model1.1)
+#plot(model1.1)
+
+redu1<-glm(shrubs~source+season, family="poisson", data=df)
+summary(redu1)
+
+redu2<-glm(shrubs~season, family="poisson", data=df)
+summary(redu2)
+
+redu3<-glm(shrubs~source, family="poisson", data=df)
+summary(redu3)
+
+anova(redu1,redu2,redu3,model1.1,test="Chisq")
+
+#Modelling forbs
+
+model2.1<-glm(forbs~source*season, family="poisson",data=df)
+summary(model2.1)
+#plot(model2.1)
+
+model2.2<-glm.nb(forbs~source*season,data=df)
+summary(model2.2)
+#plot(model1.2)
+
+redu1<-glm.nb(forbs~source+season, data=df)
+summary(redu1)
+
+redu2<-glm.nb(forbs~season, data=df)
+
+redu3<-glm.nb(forbs~source, data=df)
+
+anova(redu1,redu2,redu3,model2.2,test="Chisq")
+
+#Modelling graminoids
+
+model3.1<-glm(graminoids~source*season, family="poisson",data=df)
+summary(model3.1)
+#plot(model3.1)
+
+model3.2<-glm.nb(graminoids~source*season,data=df)
+summary(model3.2)
+#plot(model3.2)
+
+redu1<-glm.nb(graminoids~source+season, data=df)
+summary(redu1)
+
+redu2<-glm.nb(graminoids~season, data=df)
+
+redu3<-glm.nb(graminoids~source, data=df)
+
+anova(redu1,redu2,redu3,model3.2,test="Chisq")
+
+
+##### DIET RICHNESS #############################################################################
+RG<-c(mean(df$count[which(df$source=="galloway")]), std.error(df$count[which(df$source=="galloway")]))
+RE<-c(mean(df$count[which(df$source=="exmoor")]), std.error(df$count[which(df$source=="exmoor")]))
+
+RGE<-c(mean(df$count[which(df$source=="galloway" & df$season=="early")]), std.error(df$count[which(df$source=="galloway" & df$season=="early")]))
+RGM<-c(mean(df$count[which(df$source=="galloway" & df$season=="mid")]), std.error(df$count[which(df$source=="galloway" & df$season=="mid")]))
+RGL<-c(mean(df$count[which(df$source=="galloway" & df$season=="late")]), std.error(df$count[which(df$source=="galloway" & df$season=="late")]))
+REE<-c(mean(df$count[which(df$source=="exmoor" & df$season=="early")]), std.error(df$count[which(df$source=="exmoor" & df$season=="early")]))
+REM<-c(mean(df$count[which(df$source=="exmoor" & df$season=="mid")]), std.error(df$count[which(df$source=="exmoor" & df$season=="mid")]))
+REL<-c(mean(df$count[which(df$source=="exmoor" & df$season=="late")]), std.error(df$count[which(df$source=="exmoor" & df$season=="late")]))
+
+#Test for difference in diet richness between galloway and exmoor in each season
+t1<-kruskal.test(count~source,data=df)
+t2<-kruskal.test(count~season,data=df)
+
+#Early
+t3<-wilcox.test(df$count[which(df$season=="early" & df$source=="galloway")],df$count[which(df$season=="early" & df$source=="exmoor")])
+
+#Mid
+t4<-wilcox.test(df$count[which(df$season=="mid" & df$source=="galloway")],df$count[which(df$season=="mid" & df$source=="exmoor")])
+
+#Late
+t5<-wilcox.test(df$count[which(df$season=="late" & df$source=="galloway")],df$count[which(df$season=="late" & df$source=="exmoor")])
+
+#Galloway, difference between seasons
+t6<-kruskal.test(count~season,data=df[which( df$source=="galloway"),])
+
+#Early vs. Mid
+t7<-wilcox.test(df$count[which(df$season=="early" & df$source=="galloway")],df$count[which(df$season=="mid" & df$source=="galloway")])
+
+#Early vs. late
+t8<-wilcox.test(df$count[which(df$season=="early" & df$source=="galloway")],df$count[which(df$season=="late" & df$source=="galloway")])
+
+#Mid vs. late
+t9<-wilcox.test(df$count[which(df$season=="mid" & df$source=="galloway")],df$count[which(df$season=="late" & df$source=="galloway")])
+
+#Exmoor, difference between seasons
+t10<-kruskal.test(count~season,data=df[which( df$source=="exmoor"),])
+#no difference between seasons
+
+##### Frequency of trees ############################################################################
+
+TG<-c(mean(df$trees[which(df$source=="galloway")]), std.error(df$trees[which(df$source=="galloway")]))
+TE<-c(mean(df$trees[which(df$source=="exmoor")]), std.error(df$trees[which(df$source=="exmoor")]))
+
+TGE<-c(mean(df$trees[which(df$source=="galloway" & df$season=="early")]), std.error(df$trees[which(df$source=="galloway" & df$season=="early")]))
+TGM<-c(mean(df$trees[which(df$source=="galloway" & df$season=="mid")]), std.error(df$trees[which(df$source=="galloway" & df$season=="mid")]))
+TGL<-c(mean(df$trees[which(df$source=="galloway" & df$season=="late")]), std.error(df$trees[which(df$source=="galloway" & df$season=="late")]))
+TEE<-c(mean(df$trees[which(df$source=="exmoor" & df$season=="early")]), std.error(df$trees[which(df$source=="exmoor" & df$season=="early")]))
+TEM<-c(mean(df$trees[which(df$source=="exmoor" & df$season=="mid")]), std.error(df$trees[which(df$source=="exmoor" & df$season=="mid")]))
+TEL<-c(mean(df$trees[which(df$source=="exmoor" & df$season=="late")]), std.error(df$trees[which(df$source=="exmoor" & df$season=="late")]))
+
+#Test for difference in frequency of trees between galloway and exmoor in each season
+t11<-kruskal.test(trees~source,data=df)
+t12<-kruskal.test(trees~season,data=df)
+
+#Early
+t13<-wilcox.test(df$trees[which(df$season=="early" & df$source=="galloway")],df$trees[which(df$season=="early" & df$source=="exmoor")])
+
+#Mid
+t14<-wilcox.test(df$trees[which(df$season=="mid" & df$source=="galloway")],df$trees[which(df$season=="mid" & df$source=="exmoor")])
+
+#Late
+t15<-wilcox.test(df$trees[which(df$season=="late" & df$source=="galloway")],df$trees[which(df$season=="late" & df$source=="exmoor")])
+
+#Galloway, difference between seasons
+t16<-kruskal.test(trees~season,data=df[which( df$source=="galloway"),])
+#no difference
+
+
+#Exmoor, difference between seasons
+t17<-kruskal.test(trees~season,data=df[which( df$source=="exmoor"),])
+
+#Early vs. Mid
+t18<-wilcox.test(df$trees[which(df$season=="early" & df$source=="exmoor")],df$trees[which(df$season=="mid" & df$source=="exmoor")])
+
+#Early vs. late
+t19<-wilcox.test(df$trees[which(df$season=="early" & df$source=="exmoor")],df$trees[which(df$season=="late" & df$source=="exmoor")])
+
+#Mid vs. late
+t20<-wilcox.test(df$trees[which(df$season=="mid" & df$source=="exmoor")],df$trees[which(df$season=="late" & df$source=="exmoor")])
+
+##### Frequency of shrubs #############################################################################
+
+SG<-c(mean(df$shrubs[which(df$source=="galloway")]), std.error(df$shrubs[which(df$source=="galloway")]))
+SE<-c(mean(df$shrubs[which(df$source=="exmoor")]), std.error(df$shrubs[which(df$source=="exmoor")]))
+
+SGE<-c(mean(df$shrubs[which(df$source=="galloway" & df$season=="early")]), std.error(df$shrubs[which(df$source=="galloway" & df$season=="early")]))
+SGM<-c(mean(df$shrubs[which(df$source=="galloway" & df$season=="mid")]), std.error(df$shrubs[which(df$source=="galloway" & df$season=="mid")]))
+SGL<-c(mean(df$shrubs[which(df$source=="galloway" & df$season=="late")]), std.error(df$shrubs[which(df$source=="galloway" & df$season=="late")]))
+SEE<-c(mean(df$shrubs[which(df$source=="exmoor" & df$season=="early")]), std.error(df$shrubs[which(df$source=="exmoor" & df$season=="early")]))
+SEM<-c(mean(df$shrubs[which(df$source=="exmoor" & df$season=="mid")]), std.error(df$shrubs[which(df$source=="exmoor" & df$season=="mid")]))
+SEL<-c(mean(df$shrubs[which(df$source=="exmoor" & df$season=="late")]), std.error(df$shrubs[which(df$source=="exmoor" & df$season=="late")]))
+
+#Test for difference in frequency of trees between galloway and exmoor in each season
+t21<-kruskal.test(shrubs~source,data=df)
+t22<-kruskal.test(shrubs~season,data=df)
+
+#Early
+t23<-wilcox.test(df$shrubs[which(df$season=="early" & df$source=="galloway")],df$shrubs[which(df$season=="early" & df$source=="exmoor")])
+
+#Mid
+t24<-wilcox.test(df$shrubs[which(df$season=="mid" & df$source=="galloway")],df$shrubs[which(df$season=="mid" & df$source=="exmoor")])
+
+#Late
+t25<-wilcox.test(df$shrubs[which(df$season=="late" & df$source=="galloway")],df$shrubs[which(df$season=="late" & df$source=="exmoor")])
+
+#Galloway, difference between seasons
+t26<-kruskal.test(shrubs~season,data=df[which( df$source=="galloway"),])
+
+#Early vs. Mid
+t27<-wilcox.test(df$shrubs[which(df$season=="early" & df$source=="galloway")],df$shrubs[which(df$season=="mid" & df$source=="galloway")])
+
+#Early vs. late
+t28<-wilcox.test(df$shrubs[which(df$season=="early" & df$source=="galloway")],df$shrubs[which(df$season=="late" & df$source=="galloway")])
+
+#Mid vs. late
+t29<-wilcox.test(df$shrubs[which(df$season=="mid" & df$source=="galloway")],df$shrubs[which(df$season=="late" & df$source=="galloway")])
+
+#Exmoor, difference between seasons
+t30<-kruskal.test(shrubs~season,data=df[which( df$source=="exmoor"),])
+
+
+#Early vs. Mid
+t31<-wilcox.test(df$shrubs[which(df$season=="early" & df$source=="exmoor")],df$shrubs[which(df$season=="mid" & df$source=="exmoor")])
+
+#Early vs. late
+t32<-wilcox.test(df$shrubs[which(df$season=="early" & df$source=="exmoor")],df$shrubs[which(df$season=="late" & df$source=="exmoor")])
+
+#Mid vs. late
+t33<-wilcox.test(df$shrubs[which(df$season=="mid" & df$source=="exmoor")],df$shrubs[which(df$season=="late" & df$source=="exmoor")])
+
+
+##### Frequency of forbs #############################################################################
+
+FG<-c(mean(df$forbs[which(df$source=="galloway")]), std.error(df$forbs[which(df$source=="galloway")]))
+FE<-c(mean(df$forbs[which(df$source=="exmoor")]), std.error(df$forbs[which(df$source=="exmoor")]))
+
+FGE<-c(mean(df$forbs[which(df$source=="galloway" & df$season=="early")]), std.error(df$forbs[which(df$source=="galloway" & df$season=="early")]))
+FGM<-c(mean(df$forbs[which(df$source=="galloway" & df$season=="mid")]), std.error(df$forbs[which(df$source=="galloway" & df$season=="mid")]))
+FGL<-c(mean(df$forbs[which(df$source=="galloway" & df$season=="late")]), std.error(df$forbs[which(df$source=="galloway" & df$season=="late")]))
+FEE<-c(mean(df$forbs[which(df$source=="exmoor" & df$season=="early")]), std.error(df$forbs[which(df$source=="exmoor" & df$season=="early")]))
+FEM<-c(mean(df$forbs[which(df$source=="exmoor" & df$season=="mid")]), std.error(df$forbs[which(df$source=="exmoor" & df$season=="mid")]))
+FEL<-c(mean(df$forbs[which(df$source=="exmoor" & df$season=="late")]), std.error(df$forbs[which(df$source=="exmoor" & df$season=="late")]))
+
+#Test for difference in frequency of trees between galloway and exmoor in each season
+t34<-kruskal.test(forbs~source,data=df)
+t35<-kruskal.test(forbs~season,data=df)
+
+#Early
+t36<-wilcox.test(df$forbs[which(df$season=="early" & df$source=="galloway")],df$forbs[which(df$season=="early" & df$source=="exmoor")])
+
+#Mid
+t37<-wilcox.test(df$forbs[which(df$season=="mid" & df$source=="galloway")],df$forbs[which(df$season=="mid" & df$source=="exmoor")])
+
+#Late
+t38<-wilcox.test(df$forbs[which(df$season=="late" & df$source=="galloway")],df$forbs[which(df$season=="late" & df$source=="exmoor")])
+
+#Galloway, difference between seasons
+t39<-kruskal.test(forbs~season,data=df[which( df$source=="galloway"),])
+
+#Early vs. Mid
+t40<-wilcox.test(df$forbs[which(df$season=="early" & df$source=="galloway")],df$forbs[which(df$season=="mid" & df$source=="galloway")])
+
+#Early vs. late
+t41<-wilcox.test(df$forbs[which(df$season=="early" & df$source=="galloway")],df$forbs[which(df$season=="late" & df$source=="galloway")])
+
+#Mid vs. late
+t42<-wilcox.test(df$forbs[which(df$season=="mid" & df$source=="galloway")],df$forbs[which(df$season=="late" & df$source=="galloway")])
+
+#Exmoor, difference between seasons
+t43<-kruskal.test(forbs~season,data=df[which( df$source=="exmoor"),])
+
+#Early vs. Mid
+t44<-wilcox.test(df$forbs[which(df$season=="early" & df$source=="exmoor")],df$forbs[which(df$season=="mid" & df$source=="exmoor")])
+
+#Early vs. late
+t45<-wilcox.test(df$forbs[which(df$season=="early" & df$source=="exmoor")],df$forbs[which(df$season=="late" & df$source=="exmoor")])
+
+#Mid vs. late
+t46<-wilcox.test(df$forbs[which(df$season=="mid" & df$source=="exmoor")],df$forbs[which(df$season=="late" & df$source=="exmoor")])
+
+##### Frequency of graminoids #############################################################################
+
+GG<-c(mean(df$graminoids[which(df$source=="galloway")]), std.error(df$graminoids[which(df$source=="galloway")]))
+GE<-c(mean(df$graminoids[which(df$source=="exmoor")]), std.error(df$graminoids[which(df$source=="exmoor")]))
+
+GGE<-c(mean(df$graminoids[which(df$source=="galloway" & df$season=="early")]), std.error(df$graminoids[which(df$source=="galloway" & df$season=="early")]))
+GGM<-c(mean(df$graminoids[which(df$source=="galloway" & df$season=="mid")]), std.error(df$graminoids[which(df$source=="galloway" & df$season=="mid")]))
+GGL<-c(mean(df$graminoids[which(df$source=="galloway" & df$season=="late")]), std.error(df$graminoids[which(df$source=="galloway" & df$season=="late")]))
+GEE<-c(mean(df$graminoids[which(df$source=="exmoor" & df$season=="early")]), std.error(df$graminoids[which(df$source=="exmoor" & df$season=="early")]))
+GEM<-c(mean(df$graminoids[which(df$source=="exmoor" & df$season=="mid")]), std.error(df$graminoids[which(df$source=="exmoor" & df$season=="mid")]))
+GEL<-c(mean(df$graminoids[which(df$source=="exmoor" & df$season=="late")]), std.error(df$graminoids[which(df$source=="exmoor" & df$season=="late")]))
+
+
+
+#Test for difference in frequency of trees between galloway and exmoor in each season
+t47<-kruskal.test(graminoids~source,data=df)
+t48<-kruskal.test(graminoids~season,data=df)
+
+#Early
+t49<-wilcox.test(df$graminoids[which(df$season=="early" & df$source=="galloway")],df$graminoids[which(df$season=="early" & df$source=="exmoor")])
+
+#Mid
+t50<-wilcox.test(df$graminoids[which(df$season=="mid" & df$source=="galloway")],df$graminoids[which(df$season=="mid" & df$source=="exmoor")])
+
+#Late
+t51<-wilcox.test(df$graminoids[which(df$season=="late" & df$source=="galloway")],df$graminoids[which(df$season=="late" & df$source=="exmoor")])
+
+#Galloway, difference between seasons
+t52<-kruskal.test(graminoids~season,data=df[which( df$source=="galloway"),])
+
+#Exmoor, difference between seasons
+t53<-kruskal.test(graminoids~season,data=df[which( df$source=="exmoor"),])
+
+#Early vs. Mid
+t54<-wilcox.test(df$graminoids[which(df$season=="early" & df$source=="exmoor")],df$graminoids[which(df$season=="mid" & df$source=="exmoor")])
+
+#Early vs. late
+t55<-wilcox.test(df$graminoids[which(df$season=="early" & df$source=="exmoor")],df$graminoids[which(df$season=="late" & df$source=="exmoor")])
+
+#Mid vs. late
+t56<-wilcox.test(df$graminoids[which(df$season=="mid" & df$source=="exmoor")],df$graminoids[which(df$season=="late" & df$source=="exmoor")])
+
+
+#Missing comparison
+t57<-wilcox.test(df$shrubs[which(df$season=="mid" & df$source=="galloway")],df$shrubs[which(df$season=="late" & df$source=="exmoor")])
+
+
+
+pvals<-data.frame(c(t1$p.value,t2$p.value,t3$p.value,t4$p.value,t5$p.value,t6$p.value,t7$p.value,t8$p.value,t9$p.value,t10$p.value,t11$p.value,t12$p.value,t13$p.value,t14$p.value,t15$p.value,t16$p.value,t17$p.value,t18$p.value,t19$p.value,t20$p.value,t21$p.value,t22$p.value,t23$p.value,t24$p.value,t25$p.value,t26$p.value,t27$p.value,t28$p.value,t29$p.value,t30$p.value,t31$p.value,t32$p.value,t33$p.value,t34$p.value,t35$p.value,t36$p.value,t37$p.value,t38$p.value,t39$p.value,t40$p.value,t41$p.value,t42$p.value,t43$p.value,t44$p.value,t45$p.value,t46$p.value,t47$p.value,t48$p.value,t49$p.value,t50$p.value,t51$p.value,t52$p.value,t53$p.value,t54$p.value,t55$p.value,t56$p.value,t57$p.value))
+rownames(pvals)<-c("t1","t2","t3","t4","t5","t6","t7","t8","t9","t10","t11","t12","t13","t14","t15","t16","t17","t18","t19","t20","t21","t22","t23","t24","t25","t26","t27","t28","t29","t30","t31","t32","t33","t34","t35","t36","t37","t38","t39","t40","t41","t42","t43","t44","t45","t46","t47","t48","t49","t50","t51","t52","t53","t54","t55","t56","t57")
+colnames(pvals)<-"p.value"
+
+holm<-p.adjust(pvals$p.value, method="holm")
+pvals<-cbind(pvals,"corrected"=holm)
+
+
+significant<-c()
+for (i in 1:nrow(pvals)) {
+  if (pvals$corrected[i]<0.01) {significant<-append(significant, "yes")}
+  else if (pvals$corrected[i]<0.05 && pvals$corrected[i]>0.01) {significant<-append(significant, "marginally")}
+  else {significant<-append(significant, "no")}
+}
+pvals<-cbind(pvals, significant)
+
+saveRDS(pvals, "ITS/Local_analysis/output/RDS_files/pvals_difference")
+write.table(pvals,"ITS/Local_analysis/output/tables/pvals_difference.txt",sep="\t",row.names=TRUE)
+
+means<-c("mean"=c(),"StERR"=c())
+means<-rbind(means,RGE,RGM,RGL,REE,REM,REL,TGE,TGM,TGL,TEE,TEM,TEL,SGE,SGM,SGL,SEE,SEM,SEL,FGE,FGM,FGL,FEE,FEM,FEL,GGE,GGM,GGL,GEE,GEM,GEL,RG,RE,TG,TE,SG,SE,FG,FE,GG,GE)
+colnames(means)<-c("mean","StErr")
+
+saveRDS(means, "ITS/Local_analysis/output/RDS_files/means_groups")
+write.table(means,"ITS/Local_analysis/output/tables/means_groups.txt",sep="\t",row.names=TRUE)
+
+```
+
+
+```{r Genera accumulation for each source, warning=FALSE}
+
+no.rare<-readRDS("ITS/Local_analysis/output/RDS_files/dataset_after_aggregation")
+
+  source=merge(no.rare@reads,no.rare@samples[, c("source", "name")],by="row.names")
+  sample<-as.character(source$Row.names)
+  source2=within(source,rm("name","Row.names"))
+  
+
+  source2<-source2[,-ncol(source2)]
+  colnames(source2)<-no.rare@motus$genus_name
+  id<-colnames(source2)
+  
+  
+  source3<-t(source2)
+  source3<-as.data.frame(source3)
+  source3<-cbind(id,source3)
+  source3<-aggregate( . ~ id, data=source3, sum)
+  source3<-source3[!grepl("seq",source3$id, fixed=TRUE),]
+  source3<-source3[!grepl("genus",source3$id, fixed=TRUE),]
+  source3<-source3[!grepl("NOCLASS",source3$id, fixed=TRUE),]
+  
+  rownames(source3)<-source3$id
+  source3$id<-NULL
+  
+  source3<-t(source3)
+  
+  source3[source3>0]<-1
+  rownames(source3)<-seq(1,nrow(source3),by=1)
+  source3<-as.data.frame(source3)
+  source3$source<-as.factor(no.rare@samples$source)
+  source3$month<-as.factor(no.rare@samples$month)
+  
+  ##Remove empty columns
+  source2<-source3[, colSums(source3 != 0) > 0]
+  n=ncol(source3)-2
+
+  par(mfrow=c(2,1))
+  par(mar=c(4,3,4,3))
+
+    for (i in unique(source2$source)) {
+    subset<-subset(source2,source==i)
+    plot(specaccum(subset[1:n],method="exact"), ci.type="poly", col="blue", lwd=2, ci.lty=0,   ci.col="lightblue",xlab="samples",ylab="Genera",xaxt="n",yaxt="n",main=unique(subset$source))
+    axis(1,at=c(seq(5,130,by=5)))
+    axis(2,at=c(seq(5,130,by=5)))
+    }
+
+    warnings()
+    ## Warning in cor(x > 0): the standard deviation is zero
+ 
+##How to export plot as pdf or imagefile?
+    
+  par(mfrow=c(2,3))
+  par(mar=c(4,3,2,1))
+
+    for (i in unique(source2$month)) {
+    subset<-subset(source2,month==i)
+    plot(specaccum(subset[1:n],method="exact"), ci.type="poly", col="red", lwd=2, ci.lty=0,   ci.col="pink",xlab="",ylab="",xaxt="n",yaxt="n",main=unique(subset$month))
+    axis(1,at=c(1:20))
+    axis(2,at=c(25,50,75,100,125))
+    }
+
+    warnings()
+    
+```
+
+```{r Richness sources ASVs}
+
+no.rare<-readRDS("ITS/Local_analysis/output/RDS_files/dataset_after_aggregation")
+
+par(mfrow=c(1,1))
+colors = c("red","purple","yellow","brown","dark grey")
+
+  presence.source = sweep(no.rare@reads,
+                               1,
+                               rowSums((no.rare@reads)),"/") > 0
+  presence               = rowSums(presence.source)
+  boxplot(presence ~ droplevels(no.rare@samples$source),
+        xlab="",
+        ylab="No. of taxa",
+        main="ASV richness",las=3,cex.axis=.8,col=colors)
+  abline(h=mean(presence),col='red',lty=2)
+
+
+```
+
+```{r Richness months ASVs}
+
+no.rare<-readRDS("ITS/Local_analysis/output/RDS_files/dataset_after_aggregation")
+
+par(mfrow=c(1,1))
+colors = c("red","purple","yellow","brown","dark grey")
+
+  presence.month = sweep(no.rare@reads,
+                               1,
+                               rowSums((no.rare@reads)),"/") > 0
+  presence               = rowSums(presence.month)
+  boxplot(presence ~ droplevels(no.rare@samples$month),
+        xlab="",
+        ylab="No. of taxa",
+        main="ASV richness",las=3,cex.axis=.8,col=colors)
+  abline(h=mean(presence),col='red',lty=2)
+
+
+
+```
+
+```{r Richness sources families and genera}
+
+no.rare<-readRDS("ITS/Local_analysis/output/RDS_files/dataset_after_aggregation")
+
+sample=merge(t(no.rare@reads),no.rare@motus[, c("family_name","genus_name")],by="row.names")
+head(sample)
+sample2=within(sample,rm("Row.names","genus_name"))
+##Aggregate species from the same family
+sample3<-aggregate(.~family_name,data=sample2,sum)
+row.names(sample3)<-sample3$family_name
+sample4=within(sample3,rm("family_name"))
+##Transpose table
+sample5<-t(sample4)
+
+presenceFam.source = sweep(sample5,
+                               1,
+                               rowSums((sample5)),"/") > 0
+  presence               = rowSums(presenceFam.source)
+  boxplot(presence ~ droplevels(no.rare@samples$source),
+        xlab="",
+        ylab="No. of families",
+        main="Family richness",las=3,cex.axis=.8,col=colors)
+  abline(h=mean(presence),col='red',lty=2)
+  
+
+# For genera
+  sample2=within(sample,rm("Row.names","family_name"))
+##Aggregate species from the same family
+sample3<-aggregate(.~genus_name,data=sample2,sum)
+row.names(sample3)<-sample3$genus_name
+sample4=within(sample3,rm("genus_name"))
+##Transpose table
+sample5<-t(sample4)
+
+presenceGen.source = sweep(sample5,
+                               1,
+                               rowSums((sample5)),"/") > 0
+  presence               = rowSums(presenceGen.source)
+  boxplot(presence ~ droplevels(no.rare@samples$source),
+        xlab="",
+        ylab="No. of genera",
+        main="Genera richness",las=3,cex.axis=.8,col=colors)
+  abline(h=mean(presence),col='red',lty=2)
+  
+
+```
+
+```{r Richness months families and genera}
+
+no.rare<-readRDS("ITS/Local_analysis/output/RDS_files/dataset_after_aggregation")
+
+sample=merge(t(no.rare@reads),no.rare@motus[, c("family_name","genus_name")],by="row.names")
+head(sample)
+sample2=within(sample,rm("Row.names","genus_name"))
+##Aggregate species from the same family
+sample3<-aggregate(.~family_name,data=sample2,sum)
+row.names(sample3)<-sample3$family_name
+sample4=within(sample3,rm("family_name"))
+##Transpose table
+sample5<-t(sample4)
+
+presenceFam.month = sweep(sample5,
+                               1,
+                               rowSums((sample5)),"/") > 0
+  presence               = rowSums(presenceFam.month)
+  boxplot(presence ~ droplevels(no.rare@samples$month),
+        xlab="",
+        ylab="No. of families",
+        main="Family richness",las=3,cex.axis=.8,col=colors)
+  abline(h=mean(presence),col='red',lty=2)
+  
+
+  
+
+  # For genera
+  
+  sample2=within(sample,rm("Row.names","family_name"))
+##Aggregate species from the same family
+sample3<-aggregate(.~genus_name,data=sample2,sum)
+row.names(sample3)<-sample3$genus_name
+sample4=within(sample3,rm("genus_name"))
+##Transpose table
+sample5<-t(sample4)
+
+presenceGen.month = sweep(sample5,
+                               1,
+                               rowSums((sample5)),"/") > 0
+  presence               = rowSums(presenceGen.month)
+  boxplot(presence ~ droplevels(no.rare@samples$month),
+        xlab="",
+        ylab="No. of genera",
+        main="Genus richness",las=3,cex.axis=.8,col=colors)
+  abline(h=mean(presence),col='red',lty=2)
+  
+  
+```
+
+

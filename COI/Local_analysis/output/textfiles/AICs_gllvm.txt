@@ -1,0 +1,4 @@
+model AIC
+"final model" 5101.53201370519
+with.interactions 5116.77306808533
+without.row.effects 5106.76478344377

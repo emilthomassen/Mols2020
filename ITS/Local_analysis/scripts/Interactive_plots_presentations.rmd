@@ -1,0 +1,464 @@
+---
+title: "Mols2020 - interactive plots for presentation"
+author: "Emil Ellegaard Thomassen"
+date: "`r Sys.Date()"
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r Setup R and load packages}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.height = 5.5,
+	message = FALSE,
+	warning = FALSE,
+	autodep = TRUE,
+	cache = TRUE,
+	cache.lazy = FALSE,
+	tidy = TRUE,
+	tidy.opts = list(width.cutoff = 80)
+)
+rm(list=ls())
+gc()
+Dir.Base <- here::here()
+
+
+
+# Installing packages as needed
+install.load.package <- function(x) {
+  if (!require(x, character.only = TRUE))
+    install.packages(x, repos='http://cran.us.r-project.org', dependencies = TRUE)
+  require(x, character.only = TRUE)
+}
+package_vec <- c("kableExtra", "tidyverse","png", "jpeg", "sp", "ncf","rgdal","MASS", "raster", "ggmap", "ggplot2", "BiodiversityR", "pheatmap", "knitr", "printr", "ade4", "vegan", "ROBITools", "ROBITaxonomy", "dplyr", "tidyr", "plotrix")
+sapply(package_vec, install.load.package)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, cache = TRUE, cache.lazy=FALSE, tidy.opts=list(width.cutoff=80),tidy=TRUE, fig.height=5.5)
+options(digits=4, width = 90)
+
+```
+
+
+
+```{r NDMS plots - genus level}
+
+#Libraries
+library(vegan)
+library(dplyr)
+library(ggplot2)
+library(ggalt)
+library(ggpubr)
+library(plot3D)
+#library(BiodiversityR)
+
+#Function for inverse normal transformation
+inormal <- function(x)
+{
+  qnorm((rank(x, na.last = "keep") - 0.5) / sum(!is.na(x)))
+}
+
+#This step plots CAP and NMDS plots of abundance and presence/absence data
+dataset <- readRDS("ITS/Local_analysis/output/RDS_files/dataset_final")
+
+par(mfrow=c(1,1))
+
+samples<-dataset@samples[,c("source", "habitat","month")]
+season_vec=c()
+for (i in 1:nrow(samples)) {
+  if (samples$month[i]=="January") {season_vec<-append(season_vec,"early")} 
+  else if (samples$month[i]=="February") {season_vec<-append(season_vec,"early")} 
+  else if (samples$month[i]=="March") {season_vec<-append(season_vec,"early")}
+  else if (samples$month[i]=="April") {season_vec<-append(season_vec,"early")}
+  else if (samples$month[i]=="May") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="June") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="July") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="August") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="September") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="October") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="November") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="December") {season_vec<-append(season_vec,"late")}
+}
+samples<-cbind(samples, "season"=season_vec)
+
+group<-c()
+for (i in 1:nrow(samples)) {
+  if (samples$source[i]=="galloway" && samples$season[i]=="early") {group<-append(group,"Galloway - Early")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="mid") {group<-append(group,"Galloway - Mid")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="late") {group<-append(group,"Galloway - Late")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="early") {group<-append(group,"Exmoor - Early")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="mid") {group<-append(group,"Exmoor - Mid")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="late") {group<-append(group,"Exmoor - Late")}
+}
+
+samples<-cbind(samples,group)
+
+reads<-dataset$reads
+colnames(reads)<-dataset@motus$genus_name
+
+#Aggregate on genera
+id<-colnames(reads)
+df_tmp<-t(reads)
+df_tmp<-as.data.frame(df_tmp)
+df_tmp<-cbind(id,df_tmp)
+
+df_tmp<-aggregate( . ~ id, data=df_tmp, sum)
+rownames(df_tmp)<-df_tmp$id
+df_tmp$id<-NULL
+reads<-t(df_tmp)
+
+
+
+#Perform NMDS-plot of reads
+mreads<-as.matrix(sqrt(reads))
+#mreads<-as.matrix(reads) #With or without transformation?
+nmds1 = metaMDS(mreads, distance = "bray",k=3)
+nmds.scores = as.data.frame(vegan::scores(nmds1))
+head(nmds.scores)
+
+nmds.scores$Sample = row.names(samples)
+nmds.scores$Source = samples$source
+nmds.scores$Habitat = samples$habitat
+nmds.scores$Month = samples$month
+nmds.scores$Season = samples$season
+nmds.scores$Group = samples$group
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Source=factor(Source, levels=c("galloway","exmoor","Cattle","Horses")))
+
+nmds.scores$Source[which(nmds.scores$Source=="galloway")]<-"Cattle"
+nmds.scores$Source[which(nmds.scores$Source=="exmoor")]<-"Horses"
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Source=factor(Source, levels=c("Cattle","Horses")))
+
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Season=factor(Season, levels=c("early","mid", "late")))
+
+
+##1vs2
+gg1<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  #annotate("text", x=nmds1$species[1:(length(nmds1$species)/3)], y=nmds1$species[((length(nmds1$species)/3)+1):((length(nmds1$species)/3)*2)], label=rownames(nmds1$species)) + #TO add species locations - but very messy here!
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg1<-gg1 + theme(legend.position="top")
+
+plot(gg1)
+
+##1vs3
+gg2<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg2<-gg2 + theme(legend.position="top")
+
+plot(gg2)
+
+
+##2vs3
+gg3<-ggplot(nmds.scores, aes(x = NMDS2, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg3<-gg3 + theme(legend.position="top")
+
+plot(gg3)
+
+
+
+#3 dimensional plot
+par(mfrow=c(1,1))
+scatter3D(x=nmds.scores$NMDS1,y=nmds.scores$NMDS2,z=nmds.scores$NMDS3, colvar = as.integer(nmds.scores$Source), col = c("darkseagreen4","dodgerblue3"))
+
+
+
+
+
+
+
+
+#PERMANOVA
+
+#Galloway vs. Exmoor
+dist<-vegdist(mreads, method = "bray")
+
+
+##Test for homogeneity of multivariate variance
+
+#Galloway vs. exmoor
+dispersion <- betadisper(dist, group=samples$group)
+permutest(dispersion)
+plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
+
+#Homogenous multivariate dispersion (p-val=0.097)
+
+#Permanova performed
+perm<-adonis2(dist~source*season, data=samples, permutations = 999)
+perm
+
+
+
+
+
+
+#Galloway, difference between seasons
+
+##1vs2
+gg4<-ggplot(nmds.scores[which(nmds.scores$Source=="Cattle"),], aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 2, aes(colour = Season)) +
+  scale_color_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  geom_encircle(aes(fill = Group), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg4<-gg4 + theme(legend.position="top")
+
+plot(gg4)
+
+##1vs3
+gg5<-ggplot(nmds.scores[which(nmds.scores$Source=="Cattle"),], aes(x = NMDS1, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Season)) +
+  scale_color_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  geom_encircle(aes(fill = Group), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg5<-gg5 + theme(legend.position="top")
+
+plot(gg5)
+
+##2vs3
+gg6<-ggplot(nmds.scores[which(nmds.scores$Source=="Cattle"),], aes(x = NMDS2, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Season)) +
+  scale_color_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  geom_encircle(aes(fill = Group), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg6<-gg6 + theme(legend.position="top")
+
+plot(gg6)
+
+#Exmoor difference between seasons
+
+
+##1vs2
+gg7<-ggplot(nmds.scores[which(nmds.scores$Source=="Horses"),], aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 2, aes(colour = Season)) +
+  scale_color_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  geom_encircle(aes(fill = Group), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg7<-gg7 + theme(legend.position="top")
+
+plot(gg7)
+
+##1vs3
+gg8<-ggplot(nmds.scores[which(nmds.scores$Source=="Horses"),], aes(x = NMDS1, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Season)) +
+  scale_color_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  geom_encircle(aes(fill = Group), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg8<-gg8 + theme(legend.position="top")
+
+plot(gg8)
+
+
+##2vs3
+gg9<-ggplot(nmds.scores[which(nmds.scores$Source=="Horses"),], aes(x = NMDS2, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Season)) +
+  scale_color_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  geom_encircle(aes(fill = Group), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("#4fe7c7","#fb7264","#83370d")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg9<-gg9 + theme(legend.position="top")
+
+plot(gg9)
+
+
+#Early, difference between sources
+gg10<-ggplot(nmds.scores[which(nmds.scores$Season=="early"),], aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Early season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg10<-gg10 + theme(legend.position="top")
+
+plot(gg10)
+
+gg11<-ggplot(nmds.scores[which(nmds.scores$Season=="early"),], aes(x = NMDS1, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Early season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg11<-gg11 + theme(legend.position="top")
+
+plot(gg11)
+
+gg12<-ggplot(nmds.scores[which(nmds.scores$Season=="early"),], aes(x = NMDS2, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Early season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg12<-gg12 + theme(legend.position="top")
+
+plot(gg12)
+
+#Mid, difference between sources
+gg13<-ggplot(nmds.scores[which(nmds.scores$Season=="mid"),], aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Mid season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg13<-gg13 + theme(legend.position="top")
+
+plot(gg13)
+
+gg14<-ggplot(nmds.scores[which(nmds.scores$Season=="mid"),], aes(x = NMDS1, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Mid season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg14<-gg14 + theme(legend.position="top")
+
+plot(gg14)
+
+gg15<-ggplot(nmds.scores[which(nmds.scores$Season=="mid"),], aes(x = NMDS2, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Mid season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg15<-gg15 + theme(legend.position="top")
+
+plot(gg15)
+
+#Late, difference between sources
+gg16<-ggplot(nmds.scores[which(nmds.scores$Season=="late"),], aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Late season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg16<-gg16 + theme(legend.position="top")
+
+plot(gg16)
+
+gg17<-ggplot(nmds.scores[which(nmds.scores$Season=="late"),], aes(x = NMDS1, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Late season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.2),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg17<-gg17 + theme(legend.position="top")
+
+plot(gg17)
+
+gg18<-ggplot(nmds.scores[which(nmds.scores$Season=="late"),], aes(x = NMDS2, y = NMDS3)) + 
+  geom_point(size = 2, aes(colour = Source)) +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkseagreen4","dodgerblue3")) +
+  annotate("text", x=1.3, y=1.7, label="3D Stress=0.1567", cex=3) +
+  annotate("text", x=-0.75, y=2.1, label="Late season", cex=3) +
+  coord_cartesian(xlim=c(-1.2,2.8),ylim=c(-1,2.2)) +
+  theme_bw()
+
+gg18<-gg18 + theme(legend.position="top")
+
+plot(gg18)
+
+
+
+
+
+```

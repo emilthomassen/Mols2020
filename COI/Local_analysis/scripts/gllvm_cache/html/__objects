@@ -1,0 +1,14 @@
+Load data	abund	dataset	df_list	envs	X	y
+GLLVM - gaussian	AIC.fitG	fitG	.Random.seed
+GLLVM - poisson	AIC.fitP	fitP
+GLLVM - negative binomial	AIC.fitNB	fitNB
+Test of number of LVs	AICs.lv.test	i	LVs	mod
+GLLVM - NB and interactions	AIC.fitNB.int	AIC.fitNB.noint	fitNB.int	fitNB.noint
+Identify outlier orders	i	nsamples	out
+Remove outlier orders	y.subs
+GLLVM - without outliers - poisson	AIC.sfitP	sfitP
+GLLVM - without outliers - negative binomial	AIC.sfitNB	sfitNB
+Test number of lvs - without outliers	AICs.lv.test	i	LVs	mod
+Test - including interactions - without outliers	AIC.sfitP.int	AIC.sfitP.noint	sfitP.int	sfitP.noint
+GLLVM - random row effect	AIC.sfitP.lv2.RX	sfitP.lv2.RX
+Best model	fitBEST	sumBEST

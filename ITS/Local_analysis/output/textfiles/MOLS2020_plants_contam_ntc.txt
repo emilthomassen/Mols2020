@@ -1,0 +1,2 @@
+	count	final.otu	max.sample	max.ntc
+seq65207	2	Trifolium sp. seq65207	0	2

@@ -1,0 +1,16 @@
+name	count
+tot_reads_final	58591440
+gal_reads_final	29295720
+exm_reads_final	29295720
+jan_reads	4882620
+feb_reads	4882620
+mar_reads	4882620
+apr_reads	4882620
+may_reads	4882620
+jun_reads	4882620
+jul_reads	4882620
+aug_reads	4882620
+sep_reads	4882620
+oct_reads	4882620
+nov_reads	4882620
+dec_reads	4882620

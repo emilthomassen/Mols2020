@@ -1,0 +1,1029 @@
+---
+title: "Initial filtering - COI"
+author: "Emil Ellegaard Thomassen"
+date: "`r Sys.Date()"
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Preamble
+
+The following script peforms the initial filtering steps for the COI dataset. For this dataset, the "DADA2_nochim.table" file was too large to handle locally, so the first steps of summary counts and merging of the two tables has been performed on the cluster at BIRC, Aarhus University. The rest of the analysis can be performed locally.
+
+# Setup and loading
+
+First, set up R and load packages
+
+```{r Setup and loading packages}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.height = 5.5,
+	message = FALSE,
+	warning = FALSE,
+	autodep = TRUE,
+	cache = TRUE,
+	cache.lazy = FALSE,
+	tidy = TRUE,
+	tidy.opts = list(width.cutoff = 80)
+)
+rm(list=ls())
+gc()
+Dir.Base <- here::here()
+
+
+
+# Installing packages as needed
+install.load.package <- function(x) {
+  if (!require(x, character.only = TRUE))
+    install.packages(x, repos='http://cran.us.r-project.org', dependencies = TRUE)
+  require(x, character.only = TRUE)
+}
+package_vec <- c("kableExtra", "tidyverse","png", "jpeg", "sp", "ncf","rgdal","MASS", "raster", "ggmap", "ggplot2", "BiodiversityR", "pheatmap", "knitr", "printr", "ade4", "vegan", "ROBITools", "ROBITaxonomy", "dplyr", "tidyr", "plotrix")
+sapply(package_vec, install.load.package)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, cache = TRUE, cache.lazy=FALSE, tidy.opts=list(width.cutoff=80),tidy=TRUE, fig.height=5.5)
+options(digits=4, width = 90)
+
+```
+
+Then, metadata file is loaded
+
+```{r Metadata}
+
+samples.data = read.table("COI/MetaBarFlow/output/Metadata_MOLS2020_invertebrates.txt",
+                        header=TRUE,row.names=1,na.strings="NA")
+head(samples.data)
+
+###The sample selector.
+
+DungSamples = rep(FALSE,nrow(samples.data))
+DungSamples = DungSamples | samples.data$type=="sample"
+names(DungSamples)=rownames(samples.data)
+
+##Galloway selector
+GalSamples = rep(FALSE,nrow(samples.data))
+GalSamples = GalSamples | samples.data$source=="galloway"
+names(GalSamples)=rownames(samples.data)
+
+##Exmoor selector
+ExmSamples = rep(FALSE,nrow(samples.data))
+ExmSamples = ExmSamples | samples.data$source=="exmoor"
+names(ExmSamples)=rownames(samples.data)
+
+##January selector
+JanSamples = rep(FALSE,nrow(samples.data))
+JanSamples = JanSamples | samples.data$month=="January"
+names(JanSamples)=rownames(samples.data)
+
+##February selector
+FebSamples = rep(FALSE,nrow(samples.data))
+FebSamples = FebSamples | samples.data$month=="February"
+names(FebSamples)=rownames(samples.data)
+
+##March selector
+MarSamples = rep(FALSE,nrow(samples.data))
+MarSamples = MarSamples | samples.data$month=="March"
+names(MarSamples)=rownames(samples.data)
+
+##April selector
+AprSamples = rep(FALSE,nrow(samples.data))
+AprSamples = AprSamples | samples.data$month=="April"
+names(AprSamples)=rownames(samples.data)
+
+##May selector
+MaySamples = rep(FALSE,nrow(samples.data))
+MaySamples = MaySamples | samples.data$month=="May"
+names(MaySamples)=rownames(samples.data)
+
+##June selector
+JunSamples = rep(FALSE,nrow(samples.data))
+JunSamples = JunSamples | samples.data$month=="June"
+names(JunSamples)=rownames(samples.data)
+
+##July selector
+JulSamples = rep(FALSE,nrow(samples.data))
+JulSamples = JulSamples | samples.data$month=="July"
+names(JulSamples)=rownames(samples.data)
+
+##August selector
+AugSamples = rep(FALSE,nrow(samples.data))
+AugSamples = AugSamples | samples.data$month=="August"
+names(AugSamples)=rownames(samples.data)
+
+##September selector
+SepSamples = rep(FALSE,nrow(samples.data))
+SepSamples = SepSamples | samples.data$month=="September"
+names(SepSamples)=rownames(samples.data)
+
+##October selector
+OctSamples = rep(FALSE,nrow(samples.data))
+OctSamples = OctSamples | samples.data$month=="October"
+names(OctSamples)=rownames(samples.data)
+
+##November selector
+NovSamples = rep(FALSE,nrow(samples.data))
+NovSamples = NovSamples | samples.data$month=="November"
+names(NovSamples)=rownames(samples.data)
+
+##December selector
+DecSamples = rep(FALSE,nrow(samples.data))
+DecSamples = DecSamples | samples.data$month=="December"
+names(DecSamples)=rownames(samples.data)
+
+
+```
+
+```{r Read counts for certain groups}
+
+
+library(dplyr)
+library(utils)
+library(ggplot2)
+library(ggpubr)
+
+
+
+numbers_df<-read.table(file="COI/MetaBarFlow/output/counts_summary_06_12_22.txt", header=TRUE)
+
+counts_sum<-numbers_df
+
+counts_sum$Group<-as.factor(counts_sum$Group)
+counts_sum$Level<-as.factor(counts_sum$Level)
+levels(counts_sum$Group)<-append(levels(counts_sum$Group),c("Other kingdoms","Other phyla","Other classes","Other orders"))
+counts_sum$group_number<-NA
+counts_sum$Group[is.na(counts_sum$Group)]<-"Other"
+
+for (i in 1:nrow(counts_sum)) {
+  if (counts_sum$Level[i]=="total") {counts_sum$group_number[i]<-1}
+  if (counts_sum$Level[i]=="kingdoms") {counts_sum$group_number[i]<-2}
+  if (counts_sum$Level[i]=="plyla") {counts_sum$group_number[i]<-3}
+  if (counts_sum$Level[i]=="classes") {counts_sum$group_number[i]<-4}
+  if (counts_sum$Level[i]=="orders") {counts_sum$group_number[i]<-5}
+}
+
+#Change to other if not the most represented levels
+
+high_king<-c("Metazoa","Fungi","Viridiplantae")
+high_phyla<-c("Arthropoda","Nematoda")
+high_classes<-c("Collembola","Insecta")
+high_orders<-c("Diptera","Coleoptera")
+
+
+#Check if in highest level 
+for (i in counts_sum$Group[counts_sum$Level=="kingdoms"]) {
+  print(i)
+  vec<-grepl(as.character(i), high_king, fixed=TRUE)
+  if (sum(vec)==0) {counts_sum$Group[which(counts_sum$Level=="kingdoms" & counts_sum$Group==i)]<-"Other kingdoms"}
+}
+
+
+for (i in counts_sum$Group[counts_sum$Level=="plyla"]) {
+  print(i)
+  vec<-grepl(as.character(i), high_phyla, fixed=TRUE)
+  if (sum(vec)==0) {counts_sum$Group[which(counts_sum$Level=="plyla" & counts_sum$Group==i)]<-"Other phyla"}
+}
+
+for (i in counts_sum$Group[counts_sum$Level=="classes"]) {
+  print(i)
+  vec<-grepl(as.character(i), high_classes, fixed=TRUE)
+  if (sum(vec)==0) {counts_sum$Group[which(counts_sum$Level=="classes" & counts_sum$Group==i)]<-"Other classes"}
+}
+
+for (i in counts_sum$Group[counts_sum$Level=="orders"]) {
+  print(i)
+  vec<-grepl(as.character(i), high_orders, fixed=TRUE)
+  if (sum(vec)==0) {counts_sum$Group[which(counts_sum$Level=="orders" & counts_sum$Group==i)]<-"Other orders"}
+}
+
+
+counts_sum<-aggregate(Count ~ Level+Group+group_number, data=counts_sum, FUN=sum)
+
+levels<-droplevels(counts_sum$Group)
+counts_sum$Group<-factor(counts_sum$Group, levels = levels)
+
+
+#ID/no id
+slices<-c(counts_sum$Count[2],counts_sum$Count[1]-counts_sum$Count[2])
+lbs.1<-c("ID obtained","No database match")
+pct.1 <- slices/sum(slices)
+
+pie(slices,labels=lbs.1, main="Total reads", col = c("dodgerblue","darkred"),init.angle=180)
+
+#Kingdoms
+slices<-c(counts_sum$Count[3],counts_sum$Count[4],counts_sum$Count[5],counts_sum$Count[6])
+lbs.2<-c("Fungi","Metazoa","Viridiplantae","Other kingdoms")
+pct.2 <- slices/sum(slices)
+
+
+
+pie(slices,labels=lbs.2, main="Kingdoms", col = c("blue4","darkseagreen3","deepskyblue3","cyan3"), init.angle=170)
+
+#Phyla
+slices<-c(counts_sum$Count[7],counts_sum$Count[8],counts_sum$Count[9])
+lbs.3<-c("Arthropoda","Nematoda","Other phyla")
+pct.3 <- slices/sum(slices)
+
+
+pie(slices,labels=lbs.3, main="Metazoan phyla", col = c("brown2","darkolivegreen","forestgreen","yellow","darkred","pink","goldenrod","blue"), init.angle=180)
+
+#classes
+slices<-c(counts_sum$Count[10],counts_sum$Count[11],counts_sum$Count[12])
+lbs.4<-c("Collembola","Insecta","Other classes")
+pct.4 <- slices/sum(slices)
+
+
+pie(slices,labels=lbs.4, main="Arthropod classes", col = c("brown","goldenrod1","brown2","blue","red","yellow"), init.angle=180)
+
+
+#Orders
+
+slices<-c(counts_sum$Count[13],counts_sum$Count[14],counts_sum$Count[15])
+lbs.5<-c("Coleoptera","Diptera","Other orders")
+pct.5 <- slices/sum(slices)
+
+
+pie(slices,labels=lbs.5, main="Insect orders", col = c("steelblue3","darkgoldenrod4","darkgoldenrod2", "red","purple","pink","darkgreen","darkblue","burlywood1","brown2"), init.angle=90)
+
+
+
+freq<-append(pct.1,pct.2)
+freq<-append(freq,pct.3)
+freq<-append(freq,pct.4)
+freq<-append(freq,pct.5)
+
+Levels<-append(lbs.1,lbs.2)
+Levels<-append(Levels, lbs.3)
+Levels<-append(Levels, lbs.4)
+Levels<-append(Levels, lbs.5)
+
+group<-c("ID/No ID","ID/No ID","Kingdoms","Kingdoms","Kingdoms","Kingdoms","Phyla","Phyla","Phyla","Classes","Classes","Classes","Orders","Orders","Orders")
+
+df<-data.frame("group"=group,"Levels"=Levels,"freq"=freq)
+
+#mycolors<-c("dodgerblue","darkred","blue4","darkseagreen3","deepskyblue3","cyan3","brown2","darkolivegreen","forestgreen","brown","goldenrod1","brown2","steelblue3","darkgoldenrod4","darkgoldenrod2", "red","purple","pink","darkgreen","darkblue","burlywood1","brown2")
+
+mycolors<-c("aquamarine3","darkred","antiquewhite3","cadetblue3","darkolivegreen4","darkcyan","darkseagreen","chocolate","darkolivegreen","darkkhaki","darkred","burlywood","darkorange3","azure3","darkseagreen2","darkslategrey","darkseagreen4","darkolivegreen3", "yellow","purple")
+
+
+
+#order<-c("Orders", "Classes","Phyla","Kingdoms","ID/No ID")
+order<-c("ID/No ID","Kingdoms","Phyla","Classes","Orders")
+
+df$group2<-factor(df$group, levels = c("ID/No ID","Kingdoms","Phyla","Classes","Orders"), ordered = TRUE)
+
+
+#Stacked barplot
+stacked_reads<-ggplot(df, aes(fill=factor(Levels,level=unique(Levels)), y=freq, x=factor(group2, level=order))) +
+  guides(fill=guide_legend(ncol=1, title = "Levels")) +
+  geom_bar(position="stack", stat="identity", width = 0.4) +
+  scale_fill_manual(values = mycolors) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),axis.text.x = element_text(angle = 0, vjust=0.5,hjust = 0.5)) +
+  theme(title = element_text(size=28), axis.text=element_text(size=28), legend.title=element_text(size=28), legend.text = element_text(size=28)) +
+  xlab(" ") +
+  ylab(" ") +
+  ggtitle("COI")
+  #coord_flip()
+
+stacked_reads
+
+
+ggarrange(stacked_reads, labels = c("B"), nrow = 1,ncol=1)
+ggsave("COI/Local_analysis/output/figures/read_distribution_stacked_COI.svg", width=16, height=10)
+
+ggarrange(stacked_reads, labels = c("B"), nrow = 1,ncol=1)
+ggsave("COI/Local_analysis/output/figures/read_distribution_stacked_COI.pdf", width=16, height=10)
+
+```
+
+
+
+
+Sample names are extracted:
+
+```{r Extracting sample names}
+
+#Read the filtered dataset
+dataset <- import.metabarcoding.data('COI/MetaBarFlow/output/merged_table_all_06_12_22.txt')
+
+pcr = factor(substr(rownames(dataset@samples),
+                    nchar(rownames(dataset@samples))-1,
+                    nchar(rownames(dataset@samples))))
+
+samplenames=factor(substr(rownames(dataset@samples),
+                          1,
+                          nchar(rownames(dataset@samples))-2))
+
+##Preparing selector vectors
+
+#DungSamples
+samples.DungSamples = DungSamples[as.character(samplenames)]
+samples.DungSamples[is.na(samples.DungSamples)]=FALSE
+names(samples.DungSamples)=rownames(dataset@samples)
+samples.DungSamples
+
+#Galloway Samples
+samples.GalSamples = GalSamples[as.character(samplenames)]
+samples.GalSamples[is.na(samples.GalSamples)]=FALSE
+names(samples.GalSamples)=rownames(dataset@samples)
+
+#Exmoor Samples
+samples.ExmSamples = ExmSamples[as.character(samplenames)]
+samples.ExmSamples[is.na(samples.ExmSamples)]=FALSE
+names(samples.ExmSamples)=rownames(dataset@samples)
+
+#January Samples
+samples.JanSamples = JanSamples[as.character(samplenames)]
+samples.JanSamples[is.na(samples.JanSamples)]=FALSE
+names(samples.JanSamples)=rownames(dataset@samples)
+
+#February Samples
+samples.FebSamples = FebSamples[as.character(samplenames)]
+samples.FebSamples[is.na(samples.FebSamples)]=FALSE
+names(samples.FebSamples)=rownames(dataset@samples)
+
+#March Samples
+samples.MarSamples = MarSamples[as.character(samplenames)]
+samples.MarSamples[is.na(samples.MarSamples)]=FALSE
+names(samples.MarSamples)=rownames(dataset@samples)
+
+#April Samples
+samples.AprSamples = AprSamples[as.character(samplenames)]
+samples.AprSamples[is.na(samples.AprSamples)]=FALSE
+names(samples.AprSamples)=rownames(dataset@samples)
+
+#May Samples
+samples.MaySamples = MaySamples[as.character(samplenames)]
+samples.MaySamples[is.na(samples.MaySamples)]=FALSE
+names(samples.MaySamples)=rownames(dataset@samples)
+
+#June Samples
+samples.JunSamples = JunSamples[as.character(samplenames)]
+samples.JunSamples[is.na(samples.JunSamples)]=FALSE
+names(samples.JunSamples)=rownames(dataset@samples)
+
+#July Samples
+samples.JulSamples = JulSamples[as.character(samplenames)]
+samples.JulSamples[is.na(samples.JulSamples)]=FALSE
+names(samples.JulSamples)=rownames(dataset@samples)
+
+#August Samples
+samples.AugSamples = AugSamples[as.character(samplenames)]
+samples.AugSamples[is.na(samples.AugSamples)]=FALSE
+names(samples.AugSamples)=rownames(dataset@samples)
+
+#September Samples
+samples.SepSamples = SepSamples[as.character(samplenames)]
+samples.SepSamples[is.na(samples.SepSamples)]=FALSE
+names(samples.SepSamples)=rownames(dataset@samples)
+
+#October Samples
+samples.OctSamples = OctSamples[as.character(samplenames)]
+samples.OctSamples[is.na(samples.OctSamples)]=FALSE
+names(samples.OctSamples)=rownames(dataset@samples)
+
+#November Samples
+samples.NovSamples = NovSamples[as.character(samplenames)]
+samples.NovSamples[is.na(samples.NovSamples)]=FALSE
+names(samples.NovSamples)=rownames(dataset@samples)
+
+#December Samples
+samples.DecSamples = DecSamples[as.character(samplenames)]
+samples.DecSamples[is.na(samples.DecSamples)]=FALSE
+names(samples.DecSamples)=rownames(dataset@samples)
+
+
+
+###The extraction control selector. Their names start with "CNE"
+ext_con = rep(FALSE,
+               nrow(dataset@samples))
+
+ext_con[grep('^CNE',
+              rownames(dataset@samples))]=TRUE
+
+###The PCR control selector. Their names start with "NTC"
+ntc = rep(FALSE,
+               nrow(dataset@samples))
+
+ntc[grep('^NTC',
+              rownames(dataset@samples))]=TRUE
+
+###The field blank control selector. Their names end with "K"
+FB = rep(FALSE,
+               nrow(dataset@samples))
+
+FB[grep('K',
+              rownames(dataset@samples))]=TRUE
+
+##Merging the metadata database with the metabarcoding object
+
+#Source (Exmoor/galloway)
+source=as.character(samples.data[as.character(samplenames),]$source)
+source=factor(source)
+
+#Months
+month=as.character(samples.data[as.character(samplenames),]$month) 
+month=factor(month)
+
+#Season
+season=as.character(samples.data[as.character(samplenames),]$season) 
+season=factor(season)
+
+#Habitat
+habitat=as.character(samples.data[as.character(samplenames),]$habitat) 
+habitat=factor(habitat)
+
+#Latitude
+lat=samples.data[as.character(samplenames),]$lat 
+
+#Longitude
+lon=samples.data[as.character(samplenames),]$lon 
+
+
+###All the information are collected in a data.frame associated to the data ###element of the metabarcoding object.
+
+m=dataset
+
+#For Dung samples
+m@samples = cbind(dataset@samples,
+                       samples.DungSamples,
+                       samples.GalSamples,
+                       samples.ExmSamples,
+                       samples.JanSamples,
+                       samples.FebSamples,
+                       samples.MarSamples,
+                       samples.AprSamples,
+                       samples.MaySamples,
+                       samples.JunSamples,
+                       samples.JulSamples,
+                       samples.AugSamples,
+                       samples.SepSamples,
+                       samples.OctSamples,
+                       samples.NovSamples,
+                       samples.DecSamples,
+                       ext_con,
+                       ntc,
+                       FB,
+                       source,
+                       month,
+                       season,
+                       habitat,
+                       lat,
+                       lon,
+                       name=samplenames,
+                       repeats=pcr
+                       )
+dataset=m
+
+repeats =  table(dataset@samples[dataset@samples$samples.DungSamples,]$name)[unique(dataset@samples[dataset@samples$samples.DungSamples,'name'])] 
+
+###Table of repeats per sample
+write.table(table(repeats), file='COI/Local_analysis/output/textfiles/MOLS2020_invertebrates_repeats_raw.txt', quote=FALSE, sep='\t', col.names = NA,row.names=TRUE)
+
+###Lost samples and their distribution per locality
+write.table(names(repeats)[repeats==0], file='COI/Local_analysis/output/textfiles/MOLS2020_invertebrates_lost_samples_raw.txt', quote=FALSE, sep='\t', col.names = NA,row.names=TRUE)
+
+###Export current metabarcoding files
+
+saveRDS(dataset, file="COI/Local_analysis/output/RDS_files/dataset_after_extracting_sample_names")
+
+```
+
+
+```{r Check for wrong sampling}
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_after_extracting_sample_names")
+
+read_tbl<-as.data.frame(dataset@reads)
+
+colnames(read_tbl)<-dataset@motus$genus_name
+GAL<-as.data.frame(read_tbl[which(dataset@motus$genus_name=="Bos")])
+Equus<-read_tbl[which(dataset@motus$genus_name=="Equus")]
+GAL<-cbind(GAL,Equus,dataset@samples$source)
+
+GAL<-na.omit(GAL)
+wrong<-NA
+
+for (i in 1:nrow(GAL)) {
+  if (GAL$Bos[i]!=0 && GAL$`dataset@samples$source`[i]!="galloway") {wrong<-append(wrong, i)}
+  if (GAL$Equus[i]!=0 && GAL$`dataset@samples$source`[i]!="exmoor") {wrong<-append(wrong, i)}
+  
+}
+
+wrong<-wrong[-1]
+
+
+check<-GAL[wrong,]
+
+
+```
+
+From the sequence data for "Bos" and "Equus", it is evident that the following samples might have been mislabeled:
+
+Sample:           Source (originally):        Correct source:
+
+APR4                Galloway                    Exmoor
+MAY11               Galloway                    Exmoor
+MAY12               Galloway                    Exmoor
+MAY13               Galloway                    Exmoor
+MAY14               Galloway                    Exmoor
+MAY2                Galloway                    Exmoor
+JUN1                Galloway                    Exmoor
+
+
+```{r Correct source}
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_after_extracting_sample_names")
+
+source<-dataset@samples$source
+sample<-dataset@samples$name
+
+idx_wrong_source<-which(sample=="APR4" | sample=="MAY11" | sample=="MAY12" | sample=="MAY13" | sample=="MAY14" | sample=="MAY2" | sample=="JUN1")
+
+source[idx_wrong_source]<-"exmoor"
+
+dataset@samples$source<-source
+
+saveRDS(dataset, file="COI/Local_analysis/output/RDS_files/dataset_after_correcting_source")
+
+```
+
+
+
+```{r Read count per sample}
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_after_correcting_source")
+
+par(mfrow=c(1,2))
+
+hist(rowSums(dataset@reads[dataset@samples$samples.DungSamples,]),
+     breaks=50,xlab="Reads",main="Read counts")
+
+hist(log10(rowSums(dataset@reads[dataset@samples$samples.DungSamples,])),
+     breaks=50,xlab="Log(reads)",main="Log of read counts")
+
+
+
+options(digits=10)
+tot_reads<-sum(dataset@reads)
+reads_FB<-sum(dataset@reads[dataset@samples$FB,])
+reads_CNE<-sum(dataset@reads[dataset@samples$ext_con,])
+reads_NTC<-sum(dataset@reads[dataset@samples$ntc,])
+tot_reads_samples<-sum(dataset@reads[dataset@samples$samples.DungSamples,])
+
+slices<-c(tot_reads_samples,reads_FB,reads_CNE,reads_NTC)
+lbs<-c("Samples", "Field Blanks", "Extraction Blanks", "PCR Blanks")
+pct <- slices/sum(slices)*100
+
+par(mfrow=c(1,1))
+pie(slices,labels=lbs, main="Read distribution", col = c("darkseagreen","darkgoldenrod","blue", "red"))
+
+#Save these values in a table
+
+reads_dist<-data.frame("tot_reads"=tot_reads,"reads_FB"=reads_FB,"reads_CNE"=reads_CNE,"reads_NTC"=reads_NTC,"tot_reads_samples"=tot_reads_samples)
+
+write.table(reads_dist, file='COI/Local_analysis/output/textfiles/Distribution_reads_samples_controls.txt', quote=FALSE, sep='\t', col.names = TRUE,row.names=FALSE)
+
+
+```
+
+```{r ASV count per sample}
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_after_correcting_source")
+
+par(mfrow=c(1,2))
+
+presence = dataset@reads[dataset@samples$samples.DungSamples,] > 0
+
+hist(rowSums(presence),
+     breaks=50,xlab="ASVs",main="ASVs")
+hist(log10(rowSums(presence)),                                      
+     breaks=50,xlab="Log(ASVs)",main="ASVs")
+
+```
+
+```{r Scatterplot reads vs motus}
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_after_correcting_source")
+
+par(mfrow=c(1,1))
+
+  presence = dataset@reads[dataset@samples$samples.DungSamples,] > 0       
+  plot(rowSums(dataset@reads[dataset@samples$samples.DungSamples,]),       
+     rowSums(presence),
+     log="xy",xlab="Reads",ylab="ASVs",main="ASVs vs reads")
+
+```
+
+```{r Check ntc contaminants}
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_after_correcting_source")
+
+par(mfrow=c(2,4))
+
+  negControl <- dataset@reads[dataset@samples$ntc,]
+  if(is.null(dim(negControl))) negControl <- matrix(negControl, nrow=1) #vector to matrix
+  cat("Negative control for ","MOLS2020_invertebrates",": NTC\n")
+  print(dataset@motus[colSums(negControl)>0,  c('count','final.otu')])
+
+```
+
+There are ASVs present in controls, thus these are removed from samples if they are present in higher number in any control compared to any sample:
+
+
+```{r Remove ntc contamination}
+
+par(mfrow=c(1,1))
+
+contam=dataset@motus[colSums(dataset@reads[dataset@samples$ntc,])>0,
+                      c('count','final.otu')]
+
+if(length(rownames(contam))>1){
+  contam=cbind(contam,
+             max.sample=apply(dataset@reads[dataset@samples$samples.DungSamples,  #CHANGE Stream_water
+                                             rownames(contam)],2,max),
+             max.ntc=apply(dataset@reads[dataset@samples$ntc,
+                                               rownames(contam)],2,max))}
+if(length(rownames(contam))==1){
+ X1 = dataset@reads[dataset@samples$samples.DungSamples,rownames(contam)]         #CHANGE Stream_water
+ X1 <- matrix(X1,ncol=1)
+ X2 = dataset@reads[dataset@samples$ntc,rownames(contam)]
+ X2 <- matrix(X2,ncol=1)  
+ contam=cbind(contam,
+             max.sample=apply(X1,2,max),
+             max.ntc=apply(X2,2,max))}
+
+knitr::kable(contam[order(-contam$max.ntc),])
+
+##Remove all MOTUs that are more frequent in a pcr control than in a sample
+contaminant.motus = rownames(contam)[contam$max.ntc>=contam$max.sample]
+contaminant.motus
+
+write.table(contam, file='COI/Local_analysis/output/textfiles/MOLS2020_invertebrates_contam_ntc.txt', quote=FALSE, sep='\t', col.names = NA,row.names=TRUE)
+
+
+
+m = dataset[,!(colnames(dataset@reads) %in% rownames(contam)[contam$max.ntc>=contam$max.sample])]
+m@motus$count=colSums(m@reads)
+
+m=m[rowSums(m@reads)>0,]
+
+dataset=m
+
+presence = m@reads[m@samples$samples.DungSamples,] > 0                                       
+plot(rowSums(m@reads[m@samples$samples.DungSamples,]),                                       
+     rowSums(presence),
+     log="xy",xlab="Reads",ylab="ASVs",main="ASVs vs reads after NTC filter")
+
+```
+
+```{r Check Field controls contaminants}
+
+par(mfrow=c(2,4))
+
+  fieldBlank <- dataset@reads[dataset@samples$FB,]
+  if(is.null(dim(fieldBlank))) fieldBlank <- matrix(fieldBlank, nrow=1) #vector to matrix
+  cat("Negative control for ","MOLS2020_invertebrates",": FB\n")
+  print(dataset@motus[colSums(fieldBlank)>0,  c('count','final.otu')])
+
+ 
+  
+```
+
+There are ASVs present in controls, thus these are removed from samples if they are present in higher number in any control compared to any sample:
+
+
+```{r Remove FB contamination}
+
+par(mfrow=c(1,1))
+
+contam=dataset@motus[colSums(dataset@reads[dataset@samples$FB,])>0,
+                      c('count','final.otu')]
+
+if(length(rownames(contam))>1){
+  contam=cbind(contam,
+             max.sample=apply(dataset@reads[dataset@samples$samples.DungSamples,         #CHANGE Stream_water
+                                             rownames(contam)],2,max),
+             max.FB=apply(dataset@reads[dataset@samples$FB,
+                                               rownames(contam)],2,max))}
+if(length(rownames(contam))==1){
+ X1 = dataset@reads[dataset@samples$samples.DungSamples,rownames(contam)]                #CHANGE Stream_water
+ X1 <- matrix(X1,ncol=1)
+ X2 = dataset@reads[dataset@samples$FB,rownames(contam)]
+ X2 <- matrix(X2,ncol=1)  
+ contam=cbind(contam,
+             max.sample=apply(X1,2,max),
+             max.FB=apply(X2,2,max))}
+
+knitr::kable(contam[order(-contam$max.FB),])
+
+##Remove all MOTUs that are more frequent in a Field control than in a sample
+contaminant.motus = rownames(contam)[contam$max.FB>=contam$max.sample]
+contaminant.motus
+
+write.table(contam, file='COI/Local_analysis/output/textfiles/MOLS2020_invertebrates_contam_FB.txt', quote=FALSE, sep='\t', col.names = NA,row.names=TRUE)
+
+m = dataset[,!(colnames(dataset@reads) %in% rownames(contam)[contam$max.FB>=contam$max.sample])]
+m@motus$count=colSums(m@reads)
+
+m=m[rowSums(m@reads)>0,]
+
+dataset=m
+
+presence = m@reads[m$samples$samples.DungSamples,] > 0                                           
+plot(rowSums(m@reads[m$samples$samples.DungSamples,]),                                           
+     rowSums(presence),
+     log="xy",xlab="Reads",ylab="ASVs",main="ASVs vs reads after FB filter")
+
+```
+
+```{r Check cne contaminants}
+
+  extControl <- dataset@reads[dataset@samples$ext_con,]
+  if(is.null(dim(extControl))) extControl <- matrix(extControl, nrow=1) #vector to matrix
+  cat("Extraction control for ","MOLS2020_invertebrates",": CNE\n")
+  print(dataset@motus[colSums(extControl)>0,  c('count','final.otu')])
+
+```
+
+There are ASVs present in controls, thus these are removed from samples if they are present in higher number in any control compared to any sample:
+
+
+```{r Remove cne contaminants}
+
+par(mfrow=c(1,2))
+
+contam=dataset@motus[colSums(dataset@reads[dataset@samples$ext_con,])>0,
+                      c('count','final.otu')]
+
+
+
+if(length(rownames(contam))>1){
+  contam=cbind(contam,
+             max.sample=apply(dataset@reads[dataset@samples$samples.DungSamples,              #CHANGE Stream_water
+                                             rownames(contam)],2,max),
+             max.ext_con=apply(dataset@reads[dataset@samples$ext_con,
+                                               rownames(contam)],2,max))}
+if(length(rownames(contam))==1){
+ X1 = dataset@reads[dataset@samples$samples.DungSamples,rownames(contam)]                     #CHANGE Stream_water
+ X1 <- matrix(X1,ncol=1)
+ X2 = dataset@reads[dataset@samples$ext_con,rownames(contam)]
+ X2 <- matrix(X2,ncol=1)  
+ contam=cbind(contam,
+             max.sample=apply(X1,2,max),
+             max.ext_con=apply(X2,2,max))}
+
+knitr::kable(contam[order(-contam$max.ext_con),])
+
+#Remove all MOTUs that are more frequent in an extraction control than in a sample
+contaminant.motus = rownames(contam)[contam$max.ext_con>=contam$max.sample]
+contaminant.motus
+
+write.table(contam, file='COI/Local_analysis/output/textfiles/MOLS2020_invertebrates_contam_ext.txt', quote=FALSE, sep='\t', col.names = NA,row.names=TRUE)
+
+m = dataset[,!(colnames(dataset@reads) %in% rownames(contam)[contam$max.ext_con>=contam$max.sample])]
+m@motus$count=colSums(m@reads)
+m=m[rowSums(m@reads)>0,]
+
+repeats =  table(dataset@samples[dataset@samples$samples.DungSamples,]$name)[unique(dataset@samples[dataset@samples$samples.DungSamples,'name'])]                                                                                 
+
+write.table(nrow(dataset@samples[dataset@samples$samples.DungSamples,]), file='COI/Local_analysis/output/textfiles/MOLS2020_invertebrates_pcrs_after_controls_filter.txt', quote=FALSE, sep='\t', col.names = NA,row.names=TRUE)
+
+dataset=m
+
+saveRDS(dataset, file="COI/Local_analysis/output/RDS_files/dataset_after_control_filtering")
+
+
+```
+
+```{r Remove singletons}
+
+#Removes singletons
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_after_control_filtering")
+
+
+  m=dataset
+  reads = m@reads
+  for (i in unique(m@samples$name)){
+    idxName = grepl(unlist(i), row.names(m@samples))
+    if(sum(idxName)>1)
+      checkValues = colSums(reads[idxName,]>0)
+      # print(unique(dataset@motus$scientific_name[names(checkValues)])) # not working?
+    if(sum(idxName)==1)
+      checkValues = (reads[idxName,]>0)
+      idxEqualsOne = which(checkValues == 1)
+      reads[idxName, idxEqualsOne] = 0
+  }
+  m@reads <- reads
+  m@motus$count=colSums(m@reads)
+  m=m[rowSums(m@reads)>0,]
+  dataset = m  
+  
+  
+  
+    
+
+saveRDS(dataset, file="COI/Local_analysis/output/RDS_files/dataset_after_singleton_removal")  
+```
+
+Perform rarefaction analysis and plot rarefaction curves for all samples
+
+```{r Rarefaction curves}
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_after_singleton_removal")
+
+#Add "Location" and "name" columns to read count table. Filter type is just added to keep the data.frame format
+sample=merge(dataset@samples[, c("source", "name")],dataset@reads[dataset@samples$samples.DungSamples,],by="row.names")
+head(sample)
+sample2=within(sample,rm("Row.names","source"))                 
+
+#Remove empty columns
+sample3<-sample2[, colSums(sample2 != 0) > 0]
+n=ncol(sample3)
+
+par(mfrow=c(8,5))
+par(mar=c(2,1,2,1))
+
+##Plot rarefaction curves for each sample
+for (i in unique(sample3$name)) {
+  subset<-subset(sample3,name==i)
+  rarecurve(subset[2:n],step=100,col=c("darkblue", "darkorchid4", "chartreuse3", "darkgoldenrod"), lwd=2, xlab="",ylab="", label=FALSE, main=i)
+}
+
+
+
+```
+
+```{r Accumulation curves}
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_after_singleton_removal")
+
+#Add "Location" and "name" columns to read count table. Location is just added to keep the data.frame format
+sample=merge(dataset@samples[, c("source", "name")],dataset@reads[dataset@samples$samples.DungSamples,],by="row.names")
+head(sample)
+sample2=within(sample,rm("Row.names","source"))       
+
+#Remove empty columns
+sample3<-sample2[, colSums(sample2 != 0) > 0]
+n=ncol(sample2)
+
+par(mfrow=c(8,5))
+par(mar=c(2,1,2,1))
+
+#Plot species accumulation for each sample
+for (i in unique(sample2$name)) {
+  subset<-subset(sample2,name==i)
+  plot(specaccum(subset[2:n],method="exact"), ci.type="poly", col="darkorange3", lwd=2, ci.lty=0, ci.col="sandybrown",xlab="",ylab="",xaxt="n",main=i)
+axis(1,at=c(1,2,3,4,5,6,7,8,9,10))
+}
+
+
+```
+
+
+```{r Revove sequences appearing in only one PCR replicate}
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_after_singleton_removal")
+
+m=dataset
+reads = m@reads
+
+
+
+for (name in unique(m@samples$name)) {
+    idxVec <-  which(m@samples$name == unlist(name))
+    for (i in 1:ncol(reads)) {
+      n<-0
+      for (idx in idxVec) {
+        if (reads[idx, i]!=0) {
+          n<-n+1
+        }
+      }
+    if (n==1) {
+      for (idx in idxVec) {
+        reads[idx,i]=0
+    }  
+    }
+}
+}
+
+m@reads <- reads
+m@motus$count=colSums(m@reads)
+m=m[rowSums(m@reads)>0,]
+dataset = m
+
+saveRDS(dataset, file="COI/Local_analysis/output/RDS_files/dataset_after_onepcr_removal")
+
+```
+
+```{r Aggregate PCR replicates}
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_after_onepcr_removal")
+
+MOLS2020_COI_final = ROBITools:::aggregate.metabarcoding.data(dataset,
+by=list(sample=dataset@samples$name),
+FUN=sum)
+MOLS2020_COI_final = MOLS2020_COI_final[,colSums(MOLS2020_COI_final@reads)>0]
+MOLS2020_COI_final@motus$count=colSums(MOLS2020_COI_final@reads)
+MOLS2020_COI_final=MOLS2020_COI_final[rowSums(MOLS2020_COI_final@reads)>0,]
+MOLS2020_COI_final=MOLS2020_COI_final[MOLS2020_COI_final@samples$samples.DungSamples]
+MOLS2020_COI_final$sqrt = sqrt(MOLS2020_COI_final@reads)
+
+no.rare=MOLS2020_COI_final
+
+#Read counts before rarefy
+options(digits=10)
+tot_reads_no_rare<-sum(no.rare@reads[no.rare@samples$samples.DungSamples,])
+gal_reads_no_rare<-sum(no.rare@reads[no.rare@samples$samples.GalSamples,])
+exm_reads_no_rare<-sum(no.rare@reads[no.rare@samples$samples.ExmSamples,])
+
+jan_reads_no_rare<-sum(no.rare@reads[no.rare@samples$samples.JanSamples,])
+feb_reads_no_rare<-sum(no.rare@reads[no.rare@samples$samples.FebSamples,])
+mar_reads_no_rare<-sum(no.rare@reads[no.rare@samples$samples.MarSamples,])
+apr_reads_no_rare<-sum(no.rare@reads[no.rare@samples$samples.AprSamples,])
+may_reads_no_rare<-sum(no.rare@reads[no.rare@samples$samples.MaySamples,])
+jun_reads_no_rare<-sum(no.rare@reads[no.rare@samples$samples.JunSamples,])
+jul_reads_no_rare<-sum(no.rare@reads[no.rare@samples$samples.JulSamples,])
+aug_reads_no_rare<-sum(no.rare@reads[no.rare@samples$samples.AugSamples,])
+sep_reads_no_rare<-sum(no.rare@reads[no.rare@samples$samples.SepSamples,])
+oct_reads_no_rare<-sum(no.rare@reads[no.rare@samples$samples.OctSamples,])
+nov_reads_no_rare<-sum(no.rare@reads[no.rare@samples$samples.NovSamples,])
+dec_reads_no_rare<-sum(no.rare@reads[no.rare@samples$samples.DecSamples,])
+
+saveRDS(no.rare, file="COI/Local_analysis/output/RDS_files/dataset_after_aggregation")
+
+
+
+```
+
+```{r Rarify to median read depth}
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_after_aggregation")
+
+
+mean_sample<-mean(rowSums(dataset@reads[dataset@samples$samples.DungSamples,]))
+sem_sample<-std.error(rowSums(dataset@reads[dataset@samples$samples.DungSamples,]))
+sd_sample<-sd(rowSums(dataset@reads[dataset@samples$samples.DungSamples,]))
+
+summary<-summary(rowSums(dataset@reads[dataset@samples$samples.DungSamples,]))
+  
+cat(capture.output(print(summary), file='COI/Local_analysis/output/textfiles/MOLS2020_invertebrates_summary_depth.txt'))
+  
+rarefy.threshold = median(rowSums(dataset@reads[dataset@samples$samples.DungSamples,]))
+
+raw.rarefy = ROBITools::rarefy(dataset,
+n = rarefy.threshold,
+MARGIN = 'sample')
+
+tmp = ROBITools:::aggregate.metabarcoding.data(raw.rarefy,
+by=list(sample=raw.rarefy@samples$name),
+FUN=sum)
+
+rarefy.threshold = min(rowSums(tmp@reads[tmp@samples$samples.DungSamples,]))
+
+write.table(rarefy.threshold, file='COI/Local_analysis/output/textfiles/MOLS2020_invertebrates_rarefy_threshold.txt', quote=FALSE, sep='\t', col.names = NA,row.names=TRUE)
+
+DungSamples.final = ROBITools::rarefy(tmp,
+n = rarefy.threshold,
+MARGIN = 'sample')
+
+DungSamples.final = DungSamples.final[,colSums(DungSamples.final@reads)>0]
+DungSamples.final@motus$count=colSums(DungSamples.final@reads)
+DungSamples.final=DungSamples.final[rowSums(DungSamples.final@reads)>0,]
+DungSamples.final=DungSamples.final[DungSamples.final@samples$samples.DungSamples]
+DungSamples.final$sqrt = sqrt(DungSamples.final@reads)
+
+dataset=DungSamples.final
+
+#Read counts final
+options(digits=10)
+tot_reads_final<-sum(dataset@reads[dataset@samples$samples.DungSamples,])
+gal_reads_final<-sum(dataset@reads[dataset@samples$samples.GalSamples,])
+exm_reads_final<-sum(dataset@reads[dataset@samples$samples.ExmSamples,])
+
+jan_reads<-sum(dataset@reads[dataset@samples$samples.JanSamples,])
+feb_reads<-sum(dataset@reads[dataset@samples$samples.FebSamples,])
+mar_reads<-sum(dataset@reads[dataset@samples$samples.MarSamples,])
+apr_reads<-sum(dataset@reads[dataset@samples$samples.AprSamples,])
+may_reads<-sum(dataset@reads[dataset@samples$samples.MaySamples,])
+jun_reads<-sum(dataset@reads[dataset@samples$samples.JunSamples,])
+jul_reads<-sum(dataset@reads[dataset@samples$samples.JulSamples,])
+aug_reads<-sum(dataset@reads[dataset@samples$samples.AugSamples,])
+sep_reads<-sum(dataset@reads[dataset@samples$samples.SepSamples,])
+oct_reads<-sum(dataset@reads[dataset@samples$samples.OctSamples,])
+nov_reads<-sum(dataset@reads[dataset@samples$samples.NovSamples,])
+dec_reads<-sum(dataset@reads[dataset@samples$samples.DecSamples,])
+
+
+reads_after_rarefy<-data.frame("name"=c("tot_reads_final","gal_reads_final","exm_reads_final","jan_reads","feb_reads","mar_reads","apr_reads","may_reads","jun_reads","jul_reads","aug_reads","sep_reads","oct_reads","nov_reads","dec_reads"),"count"=c(tot_reads_final,gal_reads_final,exm_reads_final,jan_reads,feb_reads,mar_reads,apr_reads,may_reads,jun_reads,jul_reads,aug_reads,sep_reads,oct_reads,nov_reads,dec_reads))
+
+write.table(reads_after_rarefy, file='COI/Local_analysis/output/textfiles/Read_counts_after_rarefy.txt', quote=FALSE, sep='\t', col.names = TRUE,row.names=FALSE)
+
+
+saveRDS(dataset, file="COI/Local_analysis/output/RDS_files/dataset_final")
+
+
+```
+

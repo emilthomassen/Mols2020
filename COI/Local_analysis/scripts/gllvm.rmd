@@ -1,0 +1,588 @@
+---
+title: "GLLVM with richness data, COI"
+author: "Emil Ellegaard Thomassen"
+date: "`r Sys.Date()"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+The following script performs Generalized linear latent variable models of species richness for each order (gllvm).
+
+The package gllvm is used. (https://jenniniku.github.io/gllvm/index.html) (Niku *et al.*, 2019)
+
+# Data:
+
+First, all dung-associated species are selected, as other species would represent random visits in dung pads, or contamination through airborne DNA or carry-over by other organisms.
+
+Abund: Abundance matrix. Matrix with samples as rows and orders as columns. "Abundance values" are species counts (including ASVs identified at higher taxonomic levels, e.g., "Aphodius sp.12 (sphacelatus/prodromus))
+
+Envs: Environmental variables. Data frame with samples as rows, and the following environmental variables as columns:
+- Source (values: Exmoor/Galloway)
+- Season (values: Early/Mid/Late)
+- Habitat (values: Forest/Open)
+
+
+
+# Setup
+
+First, R environment is set up, and packages are loaded:
+
+```{r Setup and load packages, warning=FALSE, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.height = 5.5,
+	message = FALSE,
+	warning = FALSE,
+	autodep = TRUE,
+	cache = TRUE,
+	cache.lazy = FALSE,
+	tidy = TRUE,
+	tidy.opts = list(width.cutoff = 80)
+)
+rm(list=ls())
+gc()
+setwd(here::here())
+
+
+
+# Installing packages as needed
+install.load.package <- function(x) {
+  if (!require(x, character.only = TRUE))
+    install.packages(x, repos='http://cran.us.r-project.org', dependencies = TRUE)
+  require(x, character.only = TRUE)
+}
+package_vec <- c("kableExtra", "tidyverse", "ggplot2", "knitr", "printr", "vegan", "ROBITools", "ROBITaxonomy", "dplyr", "tidyr","gllvm","ggalt","ggpubr","formatR")
+sapply(package_vec, install.load.package)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, cache = TRUE, cache.lazy=FALSE, tidy.opts=list(width.cutoff=80),tidy=TRUE, fig.height=5.5)
+options(digits=4, width = 90)
+
+```
+
+# Load data
+
+Data is loaded and re-organized to match input to the gllvm() function:
+
+```{r Load data, echo=TRUE}
+
+#Load dataset for extracting environmental variables
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_final_all_dung")
+
+#dataset<-readRDS("../output/RDS_files/dataset_final_all_dung") #only when knitting
+
+
+#Load richness data
+abund<-readRDS("COI/Local_analysis/output/RDS_files/richness_each_order")
+
+#abund<-readRDS("../output/RDS_files/richness_each_order") #only when knitting
+
+
+#Extract environmental variables
+envs<-data.frame("source"=dataset@samples$source, "season"=dataset@samples$season, "habitat"=dataset@samples$habitat, "month"=dataset@samples$month)
+
+#Change season-column to factor with levels "Early", "Mid" & "Late" instead of spring, summer, autumn and winter
+
+envs<-envs %>%
+  dplyr::mutate(season=factor(season, levels=c("Early","Mid","Late")))
+
+envs$season[which(envs$month=="January")]<-"Early"
+envs$season[which(envs$month=="February")]<-"Early"
+envs$season[which(envs$month=="March")]<-"Early"
+envs$season[which(envs$month=="April")]<-"Early"
+envs$season[which(envs$month=="May")]<-"Mid"
+envs$season[which(envs$month=="June")]<-"Mid"
+envs$season[which(envs$month=="July")]<-"Mid"
+envs$season[which(envs$month=="August")]<-"Mid"
+envs$season[which(envs$month=="September")]<-"Late"
+envs$season[which(envs$month=="October")]<-"Late"
+envs$season[which(envs$month=="November")]<-"Late"
+envs$season[which(envs$month=="December")]<-"Late"
+
+#Change class of abundance data to integers
+abund<-as.data.frame(abund)
+abund<-lapply(abund, as.integer)
+abund<-as.data.frame(abund)
+
+#Set rownames of both data frames to sample names
+rownames(envs)<-dataset@samples$name
+rownames(abund)<-dataset@samples$name
+
+#Create list of abundance data and environmental variables
+df_list<-list("abund"=abund,"env"=envs)
+
+#Drop the month column in environmental variables, as it was only used to change season values
+df_list$env<-df_list$env[,c(1:3)]
+
+#Drop "control" as factor level for source column (remnant from the initial filtering steps)
+df_list$env$source<-droplevels(df_list$env$source)
+
+
+#Define inputs (y=abundance matrix, X=data frame of environmental variables)
+y <- as.matrix(df_list$abund)
+X <- df_list$env
+
+
+```
+
+# Modeling - GLLVM
+
+First, modeling is performed with different distributions
+
+## Gaussian distribution
+
+```{r GLLVM - gaussian, echo=TRUE}
+
+# Gaussian
+fitG <- gllvm(y = y, X = X, formula = y ~ source + season + habitat, family = "gaussian")
+
+par(mfrow = c(2,2))
+plot(fitG)
+AIC.fitG<-AIC(fitG)
+AIC.fitG
+
+
+```
+
+AIC value is `r AIC.fitG` - diagnostics plots does not look good! 
+
+## Poisson distribution
+
+```{r GLLVM - poisson, echo=TRUE}
+# Poisson distribution
+fitP <- gllvm(y = y, X = X, formula = y ~ source + season + habitat, family = poisson())
+
+par(mfrow = c(2,2))
+plot(fitP)
+AIC.fitP<-AIC(fitP)
+AIC.fitP
+
+```
+
+AIC value is `r AIC.fitP` - diagnostics plots looks better, but seems to be an overdispersion problem! 
+
+## Negative binomial distibution
+
+```{r GLLVM - negative binomial, echo=TRUE}
+
+# Negative binomial
+fitNB <- gllvm(y = y, X = X, formula = y ~ source + season + habitat, family = "negative.binomial")
+
+par(mfrow = c(2,2))
+plot(fitNB)
+AIC.fitNB<-AIC(fitNB)
+AIC.fitNB
+
+
+```
+
+AIC value is `r AIC.fitNB` - diagnostics plots shows that NB model seems to have taken care of the overdispersion problem! 
+
+# Test of number of latent variables
+
+Now several models with increasing number of latent variables are tested to find the optimum
+
+```{r Test of number of LVs, echo=TRUE}
+
+AICs.lv.test<-NULL
+LVs<-NULL
+for (i in c(1:5)) {
+  mod<-gllvm(y = y, X = X, formula = y ~ source + season + habitat, family = "negative.binomial", num.lv = i)
+  AICs.lv.test<-append(AICs.lv.test, AIC(mod))
+  LVs<-append(LVs, i)
+}
+
+par(mfrow=c(1,1))
+plot(LVs,AICs.lv.test, main="AIC with increasing Latent variables", xlab="Number of LVs", ylab="AIC", col="red", pch=19)
+
+```
+
+It seems like AIC increases almost linearly with increasing latent variables. I am not sure how to make sense of this, as i would have expected AIC to decrease with increasing number of latent variables? But seems like 1 would be the best model from AIC.
+
+# Including interactions between environmental variables
+
+Try to include interactions between predictors in the model
+
+```{r GLLVM - NB and interactions, echo=TRUE}
+
+# Including interaction term
+fitNB.int<-gllvm(y = y, X = X, formula = y ~ source * season * habitat, family = "negative.binomial", num.lv = 1)
+
+par(mfrow = c(2,2))
+plot(fitNB.int)
+AIC.fitNB.int<-AIC(fitNB.int)
+
+#Compare to model without interactions
+fitNB.noint<-gllvm(y = y, X = X, formula = y ~ source + season + habitat, family = "negative.binomial", num.lv = 1)
+
+AIC.fitNB.noint<-AIC(fitNB.noint)
+
+
+```
+
+AIC without interaction is: `r AIC.fitNB.noint`
+AIC with interaction is: `r AIC.fitNB.int`
+
+Higher AIC indicate that including interactions does not improve the model.
+
+# Test if some orders migth be outliers
+
+If some orders are only present in very few samples, they might disproportionately drive the analysis. Try to investigate this, and remove outlier orders.
+
+```{r Identify outlier orders, echo=TRUE}
+
+#Calculate number of samples with presence of each order
+nsamples<-NULL
+for (i in 1:ncol(y)) {nsamples<-append(nsamples,length(y[which(y[,i]>0),i]))}
+
+out<-cbind(colnames(y),nsamples,colSums(y))
+out
+
+```
+
+There seems to be several orders that are only present in very few samples. Orders present in fewer than 20 samples are removed
+
+```{r Remove outlier orders, echo=TRUE}
+
+y.subs<-y[,which(nsamples>20)]
+
+```
+
+Now, modeling is performed with the dataset without the outlier orders
+
+# Modeling - without outliers
+
+## Poisson
+
+```{r GLLVM - without outliers - poisson, echo=TRUE}
+
+# Poisson distribution
+sfitP <- gllvm(y = y.subs, X = X, formula = y ~ source + season + habitat, family = poisson())
+
+par(mfrow = c(2,2))
+plot(sfitP)
+AIC.sfitP<-AIC(sfitP)
+AIC.sfitP
+
+
+```
+
+Now a poisson distribution looks better than before - seems that the zero-inflation might be caused by some of the underrepresented orders, which are now removed as outliers. 
+
+AIC is `r AIC.sfitP`
+
+Still maybe a little overdispersion, so negative binomial is tried.
+
+## Negative binomial
+
+```{r GLLVM - without outliers - negative binomial, echo=TRUE}
+
+# Negative binomial
+sfitNB <- gllvm(y = y.subs, X = X, formula = y ~ source + season + habitat, family = "negative.binomial")
+
+par(mfrow = c(2,2))
+plot(sfitNB)
+AIC.sfitNB<-AIC(sfitNB)
+AIC.sfitNB
+
+```
+
+Looks generally good from diagnostics plots, but AIC (`r AIC.sfitNB`) is higher than the poisson model. Thus the poisson model is chosen.
+
+# Test number of latent variables
+
+Models with increasing number of LVs are performed, and AICs are plotted.
+
+```{r Test number of lvs - without outliers, echo=TRUE}
+AICs.lv.test<-NULL
+LVs<-NULL
+for (i in c(1:5)) {
+  mod<-gllvm(y = y.subs, X = X, formula = y ~ source + season + habitat, family = poisson(), num.lv = i)
+  AICs.lv.test<-append(AICs.lv.test, AIC(mod))
+  LVs<-append(LVs, i)
+}
+
+par(mfrow=c(1,1))
+plot(LVs,AICs.lv.test, main="AIC with increasing Latent variables (without outliers)", xlab="Number of LVs", ylab="AIC", col="red", pch=19)
+```
+
+Including 2 latent variables seems to be the best model. I have tried this several times, and the AIC values are not consistent between model fits. Sometimes 2 is best, sometimes 3.
+
+I chose 2 for now, but we can decide to change if you think so. The results are pretty much the same.
+
+# Including interactions
+
+Test if including interactions between predictors improve model performance
+
+```{r Test - including interactions - without outliers, echo=TRUE}
+# Including interaction term
+sfitP.int<-gllvm(y = y.subs, X = X, formula = y ~ source * season * habitat, family = "negative.binomial", num.lv = 2)
+
+par(mfrow = c(2,2))
+plot(sfitP.int)
+AIC.sfitP.int<-AIC(sfitP.int)
+
+sfitP.noint<-gllvm(y = y.subs, X = X, formula = y ~ source + season + habitat, family = "negative.binomial", num.lv = 2)
+AIC.sfitP.noint<-AIC(sfitP.noint)
+
+```
+
+AIC without interaction: `r AIC.sfitP.noint`
+AIC with interaction: `r AIC.sfitP.int`
+
+Inclusion of interactions seem to improve model performance.
+
+# Inclusion of random row effect
+
+```{r GLLVM - random row effect, echo=TRUE}
+
+#Random row effect included
+sfitP.lv2.RX<-gllvm(y = y.subs, X = X, formula = y ~ source * season * habitat, family = "negative.binomial", num.lv = 2, row.eff = "random")
+
+
+par(mfrow = c(2,2))
+plot(sfitP.lv2.RX)                    
+AIC.sfitP.lv2.RX<-AIC(sfitP.lv2.RX)
+AIC.sfitP.lv2.RX
+
+```
+
+Inclusion of random row effect does not increase model performance:
+
+AIC with row-effects: `r AIC.sfitP.lv2.RX`
+AIC without: `r AIC.sfitP.noint`
+
+Maybe we should include anyway, when our samples are not truly independent?
+
+
+
+```{r Test simpler models, echo=TRUE}
+
+#Random row effect included
+sfitP.so_se<-gllvm(y = y.subs, X = X, formula = y ~ source + season, family = "negative.binomial", num.lv = 2, row.eff = "random")
+AIC(sfitP.so_se)
+sfitP.so_ha<-gllvm(y = y.subs, X = X, formula = y ~ source + habitat, family = "negative.binomial", num.lv = 2, row.eff = "random")
+AIC(sfitP.so_ha)
+sfitP.se_ha<-gllvm(y = y.subs, X = X, formula = y ~ season + habitat, family = "negative.binomial", num.lv = 2, row.eff = "random")
+AIC(sfitP.se_ha)
+sfitP.se<-gllvm(y = y.subs, X = X, formula = y ~ season, family = "negative.binomial", num.lv = 2, row.eff = "random")
+AIC(sfitP.se)
+sfitP.so<-gllvm(y = y.subs, X = X, formula = y ~ source, family = "negative.binomial", num.lv = 2, row.eff = "random")
+AIC(sfitP.so)
+sfitP.ha<-gllvm(y = y.subs, X = X, formula = y ~ habitat, family = "negative.binomial", num.lv = 2, row.eff = "random")
+AIC(sfitP.ha)
+
+
+```
+
+
+None of these simpler model better than the one with all 3 predictors.
+
+So best model is a model with poisson distribution, without outlier orders, including 2 latent variables, source, season and habitat as predictors, and including a random row-effect, and no interactions between predictors
+
+# Best model
+
+```{r Best model, echo=TRUE}
+
+#Best model
+
+fitBEST<-gllvm(y = y.subs, X = X, formula = y ~ source + season + habitat, family = poisson(), num.lv = 2, row.eff = "random")
+
+fitBEST2<-gllvm(y = y.subs, X = X, formula = y ~ source * season * habitat, family = poisson(), num.lv = 2, row.eff = "random")
+
+sumBEST<-summary(fitBEST)
+sumBEST
+
+```
+
+
+# Create coefficient plots
+
+First input is created from the summary of the model, and by extracting confidence intervals
+
+```{r Create input for plotting, echo=TRUE}
+
+#Gather all parameters and confidence intervals in df
+
+conf<-as.data.frame(confint(fitBEST))
+
+
+
+df.params<-as.data.frame(cbind(fitBEST$params$beta0,fitBEST$params$Xcoef,
+                               conf$`2.5 %`[30:38],
+                               conf$`97.5 %`[30:38],
+                               conf$`2.5 %`[39:47],
+                               conf$`97.5 %`[39:47],
+                               conf$`2.5 %`[48:56],
+                               conf$`97.5 %`[48:56],
+                               conf$`2.5 %`[57:65],
+                               conf$`97.5 %`[57:65]
+))
+                               
+                               
+colnames(df.params)<-c("intercept", "coef.source.GAL","coef.season.MID","coef.season.LATE", "coef.habitat.OPEN",
+                          "conf.low.source.GAL","conf.high.source.GAL","conf.low.season.MID","conf.high.season.MID","conf.low.season.LATE","conf.high.season.LATE", "conf.low.habitat.OPEN", "conf.high.habitat.OPEN")
+
+#Check if zero is included in 95% confint
+signif.GAL<-NULL
+for(i in 1:nrow(df.params)) {if (between(0, df.params$conf.low.source.GAL[i], df.params$conf.high.source.GAL[i])) {signif.GAL<-append(signif.GAL,"no diff.")}
+                             else {if (df.params$conf.high.source.GAL[i]<0) {signif.GAL<-append(signif.GAL,"higher richness horse")}
+                               else {signif.GAL<-append(signif.GAL,"higher richness cattle")}
+                               }
+}
+
+signif.MID<-NULL
+for(i in 1:nrow(df.params)) {if (between(0, df.params$conf.low.season.MID[i], df.params$conf.high.season.MID[i])) {signif.MID<-append(signif.MID,"no diff.")}
+                             else {if (df.params$conf.high.season.MID[i]<0) {signif.MID<-append(signif.MID,"higher richness early")}
+                               else {signif.MID<-append(signif.MID,"higher richness mid")}
+                               }
+}
+
+signif.LATE<-NULL
+for(i in 1:nrow(df.params)) {if (between(0, df.params$conf.low.season.LATE[i], df.params$conf.high.season.LATE[i])) {signif.LATE<-append(signif.LATE,"no diff.")}
+                             else {if (df.params$conf.high.season.LATE[i]<0) {signif.LATE<-append(signif.LATE,"higher richness early")}
+                               else {signif.LATE<-append(signif.LATE,"higher richness late")}
+                               }
+}
+
+signif.OPEN<-NULL
+for(i in 1:nrow(df.params)) {if (between(0, df.params$conf.low.habitat.OPEN[i], df.params$conf.high.habitat.OPEN[i])) {signif.OPEN<-append(signif.OPEN,"no diff.")}
+                             else {if (df.params$conf.high.habitat.OPEN[i]<0) {signif.OPEN<-append(signif.OPEN,"higher richness forest")}
+                               else {signif.OPEN<-append(signif.OPEN,"higher richness open")}
+                               }
+}
+
+
+df.params<-cbind(df.params, "signif.GAL"=as.factor(signif.GAL),"signif.season.MID"=as.factor(signif.MID),"signif.season.LATE"=as.factor(signif.LATE),"signif.OPEN"=as.factor(signif.OPEN))
+
+```
+
+Then coefficient plots are created with ggplot2
+
+```{r Plotting source, include=FALSE}
+
+#Plotting coefficient plot of source
+
+df.source<-df.params[,c(2,6:7,14)]
+
+level_order<-rownames(df.source[order(df.source$coef.source.GAL, decreasing = FALSE),])
+
+colnames(df.source)<-c("Coefficient","Conf.low","Conf.high","Significance")
+
+
+ggcoefplot.source<-ggplot(df.source, aes(x=Coefficient, y=factor(rownames(df.source),level=level_order),col=Significance)) +
+  geom_vline(aes(xintercept=0), lty=2, alpha=0.5) +
+  coord_cartesian(xlim=c(-2,2)) +
+  geom_point() +
+  scale_color_manual(values=c("darkseagreen4","dodgerblue3","grey")) +
+  geom_segment(aes(x=Conf.low, xend=Conf.high, yend=factor(rownames(df.source)),colour=Significance)) +
+  xlab("Coefficients") +
+  ylab("Orders") +
+  theme_bw()
+
+
+ggcoefplot.source<-ggcoefplot.source +  theme(legend.position="top", legend.title = element_blank(), legend.direction ="vertical" )
+
+ggcoefplot.source<-ggcoefplot.source +  theme(text = element_text(size = 14))
+  
+ggcoefplot.source
+
+
+  
+```
+
+
+```{r Plotting season, include=FALSE}
+
+
+#Plotting coefficient plot of season
+
+df.season<-df.params[,which(grepl("season", colnames(df.params)))]
+
+level_order1<-rownames(df.season[order(df.season$coef.season.MID, decreasing = FALSE),])
+level_order2<-rownames(df.season[order(df.season$coef.season.LATE, decreasing = FALSE),])
+
+
+colnames(df.season)<-c("Coefficient.MID","Coefficient.LATE","Conf.low.MID","Conf.high.MID","Conf.low.LATE","Conf.high.LATE","Significance", "Significance.LATE" )
+
+
+ggcoefplot.season<-ggplot(df.season, aes(x=Coefficient.MID, y=factor(rownames(df.source),level=level_order1),col=Significance)) +
+  geom_vline(aes(xintercept=0), lty=2, alpha=0.5) +
+  coord_cartesian(xlim=c(-3,20)) +
+  geom_point(position = position_nudge(x=0, y=0.1)) +
+  geom_segment(aes(x=Conf.low.MID, xend=Conf.high.MID, yend=factor(rownames(df.source)),colour=Significance), position = position_nudge(x=0, y=0.1)) +
+  
+  scale_color_manual(values=c("#4fe7c7","#83370d","#fb7264","grey")) +
+  geom_point(data=df.season, aes(x=Coefficient.LATE, y=factor(rownames(df.source),level=level_order),col=Significance.LATE), position = position_nudge(x=0, y=-0.1)) +
+  geom_segment(data=df.season,aes(x=Conf.low.LATE, xend=Conf.high.LATE, yend=factor(rownames(df.source)),colour=Significance.LATE), position = position_nudge(x=0, y=-0.1)) +
+  
+  
+  xlab("Coefficients") +
+  ylab("Orders") +
+  theme(legend.position="top") +
+  theme_bw()
+
+ggcoefplot.season<-ggcoefplot.season +  theme(legend.position="top", legend.title = element_blank())
+
+ggcoefplot.season<-ggcoefplot.season +  theme(text = element_text(size = 14))
+  
+ggcoefplot.season
+
+```
+
+
+
+```{r Plotting habitat, include=FALSE}
+
+#Plotting coefficient plot of habitat
+
+df.habitat<-df.params[,which(grepl("OPEN", colnames(df.params)))]
+
+level_order<-rownames(df.habitat[order(df.habitat$coef.habitat.OPEN, decreasing = FALSE),])
+
+colnames(df.habitat)<-c("Coefficient","Conf.low","Conf.high","Significance")
+
+
+ggcoefplot.habitat<-ggplot(df.habitat, aes(x=Coefficient, y=factor(rownames(df.habitat),level=level_order),col=Significance)) +
+  geom_vline(aes(xintercept=0), lty=2, alpha=0.5) +
+  coord_cartesian(xlim=c(-2,2)) +
+  geom_point() +
+  scale_color_manual(values=c("#AED0A5","#F9F0BC","grey")) +
+  geom_segment(aes(x=Conf.low, xend=Conf.high, yend=factor(rownames(df.habitat)),colour=Significance)) +
+  xlab("Coefficients") +
+  ylab("Orders") +
+  theme(legend.position="top") +
+  theme_bw()
+
+ggcoefplot.habitat<-ggcoefplot.habitat +  theme(legend.position="top", legend.title = element_blank(), legend.direction ="vertical" )
+
+ggcoefplot.habitat<-ggcoefplot.habitat +  theme(text = element_text(size = 14))
+  
+ggcoefplot.habitat
+
+
+  
+```
+
+# Arrange and export plots
+
+```{r Export plots, echo=FALSE}
+
+gg.tmp<-ggarrange(ggcoefplot.source,ggcoefplot.habitat, labels = c("A","B"), nrow = 1, ncol=2)
+
+ggarrange(gg.tmp,ggcoefplot.season, labels = c("","C"), nrow = 2, ncol=1)
+ggsave("COI/Local_analysis/output/plots/Coefficient_plots_gllvm.png", width=12, height=9)
+
+
+```
+
+```{r Export AIC values, echo=FALSE}
+
+AICs<-as.data.frame(cbind(c("final model", "with.interactions","without.row.effects"),c(AICc(fitBEST), AICc(fitBEST.int), AICc(fitBEST.norow))))
+
+colnames(AICs)<-c("model", "AIC")
+
+write_delim(AICs, file="COI/Local_analysis/output/textfiles/AICs_gllvm.txt")
+
+```
+

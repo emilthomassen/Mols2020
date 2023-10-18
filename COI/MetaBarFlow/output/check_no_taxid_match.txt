@@ -1,0 +1,7 @@
+ssciname	seq	taxid	seqid
+Pyronia bathseba	seq43281	111937	43281
+Pyronia bathseba	seq44015	111937	44015
+Bradybaena fruticum	seq284389	265977	284389
+Bradybaena fruticum	seq284596	265977	284596
+Xestia cNnigrum	seq542675	2828213	542675
+Pyronia bathseba	seq664150	111937	664150

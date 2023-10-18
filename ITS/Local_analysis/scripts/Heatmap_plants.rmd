@@ -1,0 +1,130 @@
+---
+title: "Heatmap plants"
+author: "Emil Ellegaard Thomassen"
+date: "`r Sys.Date()"
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+
+Code for plotting in heatmap
+
+Setup R and load packages
+
+```{r Setup and load packages}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.height = 5.5,
+	message = FALSE,
+	warning = FALSE,
+	autodep = TRUE,
+	cache = TRUE,
+	cache.lazy = FALSE,
+	tidy = TRUE,
+	tidy.opts = list(width.cutoff = 80)
+)
+rm(list=ls())
+gc()
+Dir.Base <- here::here()
+
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, cache = TRUE, cache.lazy=FALSE, tidy.opts=list(width.cutoff=80),tidy=TRUE, fig.height=5.5)
+options(digits=4, width = 90)
+
+```
+
+```{r Create input file}
+
+library(ROBITools)
+library(ROBITaxonomy)
+
+#Load data
+dataset<-readRDS("ITS/Local_analysis/output/RDS_files/dataset_final")
+
+#Aggregate on genera
+
+reads<-dataset@reads
+colnames(reads)<-dataset@motus$genus_name
+
+id<-colnames(reads)
+df_tmp<-t(reads)
+df_tmp<-as.data.frame(df_tmp)
+df_tmp<-cbind(id,df_tmp)
+
+df_tmp<-aggregate( . ~ id, data=df_tmp, sum)
+rownames(df_tmp)<-df_tmp$id
+df_tmp$id<-NULL
+reads<-t(df_tmp)
+
+
+
+#Create df and convert to pres/abs
+df<-data.frame(reads)
+df[df>0]<-1
+
+#Subtract unidentified genera
+df<-df[,which(!grepl("genus",colnames(df),fixed = TRUE))]
+df<-df[,which(!grepl("seq",colnames(df),fixed = TRUE))]
+
+#Load metadata
+
+meta <- data.frame("source"=dataset@samples$source,"season"=dataset@samples$season,"habitat"=dataset@samples$habitat)
+rownames(meta)<-dataset@samples$name
+
+
+
+```
+
+
+
+```{r Heatmap}
+
+
+#Load libaries
+library(pheatmap)
+library(dplyr)
+library(RColorBrewer)
+library(MetBrewer)
+
+#Read in data
+df2<-df
+
+cat_df<-meta
+
+
+cat_df$source<-factor(cat_df$source, levels=c("galloway","Galloway","exmoor","Exmoor"))
+cat_df$season<-factor(cat_df$season, levels=c("early","Early","mid","Mid","late","Late"))
+cat_df$habitat<-factor(cat_df$habitat, levels=c("open","Open","forest","Forest"))
+
+cat_df[cat_df=="galloway"]<-"Galloway"
+cat_df[cat_df=="exmoor"]<-"Exmoor"
+cat_df[cat_df=="open"]<-"Open"
+cat_df[cat_df=="forest"]<-"Forest"
+cat_df[cat_df=="early"]<-"Early"
+cat_df[cat_df=="mid"]<-"Mid"
+cat_df[cat_df=="late"]<-"Late"
+
+
+cat_df$source<-factor(cat_df$source, levels=c("Galloway","Exmoor"))
+cat_df$season<-factor(cat_df$season, levels=c("Early","Mid","Late"))
+cat_df$habitat<-factor(cat_df$habitat, levels=c("Open","Forest"))
+
+colnames(cat_df)<-c("Source","Season","Habitat")
+
+
+
+myColors = list(
+  Source = c(Galloway = "darkseagreen4", Exmoor = "dodgerblue3"),
+  Season = c(Early = "#b1f5ba", Mid = "#d5c463", Late = "#956009")
+)
+
+dev.off()
+pdf(file = "ITS/Local_analysis/output/plots/Heatmap_plants.pdf",   # The directory you want to save the file in
+    width = 20, # The width of the plot in inches
+    height = 30)
+
+pheatmap(df2,color=colorRampPalette(brewer.pal(n = 3, name ="Reds"))(2), annotation_row = cat_df[1:2],annotation_colors = myColors, cluster_cols=T,cluster_rows=T, fontsize_col=8,cellheight=8,fontsize_row=8,legend_breaks=c(0,1))
+dev.off()
+
+```
+

@@ -1,0 +1,5 @@
+	count	final.otu	max.sample	max.ext_con
+seq56772	406	Liposcelis brunnea	0	406
+seq105463	163	Micropsectra pallidula	0	163
+seq36581	762	Nais communis	0	762
+seq80989	238	noval	95	18

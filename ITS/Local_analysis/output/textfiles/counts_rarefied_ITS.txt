@@ -1,0 +1,16 @@
+group	count
+tot_reads_final	179377865
+gal_reads_final	84059920
+exm_reads_final	95317945
+jan_reads_final	15010700
+feb_reads_final	15010700
+mar_reads_final	15010700
+apr_reads_final	15010700
+may_reads_final	15010700
+jun_reads_final	15010700
+jul_reads_final	15010700
+aug_reads_final	14260165
+sep_reads_final	15010700
+oct_reads_final	15010700
+nov_reads_final	15010700
+dec_reads_final	15010700

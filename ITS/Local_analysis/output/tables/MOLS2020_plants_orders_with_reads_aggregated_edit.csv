@@ -1,0 +1,26 @@
+;total;kingdom;phylum;class;order;n_families;n_genera;eg;ee;mg;me;lg;le;eg_proc;ee_proc;mg_proc;me_proc;lg_proc;le_proc
+Hypnales;20938;Viridiplantae;Streptophyta;Bryopsida;Hypnales;2;3;1194;706;0;19038;0;0;100;3.6;0;96.4;0;0
+Alismatales;2266;Viridiplantae;Streptophyta;Magnoliopsida;Alismatales;1;1;0;0;531;1735;0;0;0;0;100;100;0;0
+Apiales;97619;Viridiplantae;Streptophyta;Magnoliopsida;Apiales;1;4;0;11675;12755;39970;22960;10259;0;18.9;35.7;64.6;64.3;16.6
+Asterales;2357435;Viridiplantae;Streptophyta;Magnoliopsida;Asterales;2;11;154561;284821;120333;803474;545724;448522;18.8;18.5;14.7;52.3;66.5;29.2
+Boraginales;767;Viridiplantae;Streptophyta;Magnoliopsida;Boraginales;1;1;0;767;0;0;0;0;NA;100;NA;0;NA;0
+Brassicales;212819;Viridiplantae;Streptophyta;Magnoliopsida;Brassicales;1;8;116933;75752;6012;12080;0;2042;95.1;84.3;4.9;13.4;0;2.3
+Caryophyllales;10361827;Viridiplantae;Streptophyta;Magnoliopsida;Caryophyllales;2;8;118698;1537276;2434408;5835329;336483;99633;4.1;20.6;84.2;78.1;11.6;1.3
+Dipsacales;70809;Viridiplantae;Streptophyta;Magnoliopsida;Dipsacales;2;3;10155;1752;8165;0;40245;10492;17.3;14.3;13.9;0;68.7;85.7
+Ericales;6936939;Viridiplantae;Streptophyta;Magnoliopsida;Ericales;2;5;754783;1564714;634708;660920;1681278;1640536;24.6;40.5;20.7;17.1;54.8;42.4
+Fabales;9777234;Viridiplantae;Streptophyta;Magnoliopsida;Fabales;1;9;476522;429897;4585904;2893997;492053;898861;8.6;10.2;82.6;68.5;8.9;21.3
+Fagales;42697964;Viridiplantae;Streptophyta;Magnoliopsida;Fagales;3;6;3988573;11719628;507691;8196292;4187802;14097978;45.9;34.5;5.8;24.1;48.2;41.4
+Gentianales;689991;Viridiplantae;Streptophyta;Magnoliopsida;Gentianales;2;3;9511;211530;185688;201453;70796;11013;3.6;49.9;69.8;47.5;26.6;2.6
+Lamiales;11063953;Viridiplantae;Streptophyta;Magnoliopsida;Lamiales;4;9;744322;367865;4983372;560507;4164358;243529;7.5;31.4;50.4;47.8;42.1;20.8
+Malpighiales;1576981;Viridiplantae;Streptophyta;Magnoliopsida;Malpighiales;3;4;76796;187244;920655;79068;106335;206883;7;39.6;83.4;16.7;9.6;43.7
+Malvales;1081599;Viridiplantae;Streptophyta;Magnoliopsida;Malvales;1;1;0;5052;34930;29491;1002421;9705;0;11.4;3.4;66.6;96.6;21.9
+Myrtales;3431604;Viridiplantae;Streptophyta;Magnoliopsida;Myrtales;2;4;1921754;158314;775824;420626;54249;100837;69.8;23.3;28.2;61.9;2;14.8
+Poales;7744072;Viridiplantae;Streptophyta;Magnoliopsida;Poales;3;27;425920;392990;148599;3779400;592748;2404415;36.5;6;12.7;57.5;50.8;36.6
+Ranunculales;535943;Viridiplantae;Streptophyta;Magnoliopsida;Ranunculales;2;5;79762;23912;232963;54681;15484;129141;24.3;11.5;71;26.3;4.7;62.2
+Rosales;80631504;Viridiplantae;Streptophyta;Magnoliopsida;Rosales;3;14;20390574;13758849;9159523;10915755;16705860;9700943;44.1;40;19.8;31.8;36.1;28.2
+Sapindales;1937;Viridiplantae;Streptophyta;Magnoliopsida;Sapindales;1;1;0;1782;155;0;0;0;0;100;100;0;0;0
+Saxifragales;1088;Viridiplantae;Streptophyta;Magnoliopsida;Saxifragales;1;1;0;0;0;0;1088;0;0;NA;0;NA;100;NA
+Solanales;8760;Viridiplantae;Streptophyta;Magnoliopsida;Solanales;1;1;0;3489;434;4837;0;0;0;41.9;100;58.1;0;0
+Magnoliopsida unidentified;7836;Viridiplantae;Streptophyta;Magnoliopsida;unidentified;unidentified;unidentified;191;0;6452;869;0;324;2.9;0;97.1;72.8;0;27.2
+NOID;22528;Viridiplantae;Streptophyta;Pinopsida;NA;3;4;0;19859;0;0;1516;1153;0;94.5;0;0;100;5.5
+unidentified reads;43452;unidentified;unidentified;unidentified;unidentified;unidentified;unidentified;616;14061;8553;15088;0;5134;6.7;41;93.3;44;0;15

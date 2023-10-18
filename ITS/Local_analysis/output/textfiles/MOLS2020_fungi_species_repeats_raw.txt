@@ -1,0 +1,2 @@
+	repeats	Freq
+1	4	240

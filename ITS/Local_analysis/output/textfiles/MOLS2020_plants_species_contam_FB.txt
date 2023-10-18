@@ -1,0 +1,34 @@
+	count	final.otu	max.sample	max.FB
+seq559	30229	Agrostis sp. seq559	5577	188
+seq569	28991	Agrostis sp. seq569	5376	200
+seq237	317353	Carex arenaria	9311	2
+seq1582	4340	Poa sp. seq1582	141	4199
+seq1634	4104	Poa sp. seq1634	160	3944
+seq1222	7016	Prunus sp. seq1222	1600	2
+seq13	1857452	Quercus sp. seq13	41983	1
+seq136	262596	Quercus sp. seq136	21727	1
+seq58829	10	Quercus sp. seq58829	0	10
+seq62275	4	Quercus sp. seq62275	0	4
+seq64610	2	Quercus sp. seq64610	0	2
+seq1	13864116	Rubus sp. seq1	216357	2
+seq115	326715	Rubus sp. seq115	10851	1
+seq3804	1356	Rubus sp. seq3804	824	2
+seq62512	4	Rubus sp. seq62512	0	4
+seq63328	3	Rubus sp. seq63328	0	3
+seq64949	2	Rubus sp. seq64949	0	2
+seq65995	1	Rubus sp. seq65995	0	1
+seq8	2869924	Rubus sp. seq8	221783	7
+seq933	11697	Rumex sp. seq933	2375	122
+seq935	11635	Rumex sp. seq935	2363	149
+seq1385	5429	Sambucus sp. seq1385	452	4383
+seq1440	5074	Sambucus sp. seq1440	368	4183
+seq2789	1917	Sambucus sp. seq2789	334	1583
+seq2831	1888	Sambucus sp. seq2831	328	1560
+seq33873	102	Sambucus sp. seq33873	0	102
+seq34263	100	Sambucus sp. seq34263	0	100
+seq41057	71	Sambucus sp. seq41057	0	71
+seq4231	1211	Sambucus sp. seq4231	0	1211
+seq4663	1094	Sambucus sp. seq4663	0	1094
+seq1141	7852	seq1141	1811	413
+seq1163	7597	seq1163	1794	401
+seq476	41329	Tilia sp. seq476	4496	1

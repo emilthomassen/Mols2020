@@ -1,0 +1,41 @@
+	count	final.otu	max.sample	max.ext_con
+seq70	648791	Betula sp. seq70	52504	7
+seq72	630466	Betula sp. seq72	50047	11
+seq81	560352	Betula sp. seq81	35236	2
+seq11	5812943	Calluna vulgaris	183025	1
+seq92	2961809	Lotus pedunculatus	154851	1
+seq4	3504058	Plantago sp. seq4	81871	2
+seq66044	1	Prunus sp. seq66044	0	1
+seq26	2830370	Quercus robur	72208	2
+seq10	2677900	Quercus sp. seq10	38588	3
+seq11076	445	Quercus sp. seq11076	224	1
+seq14	1782850	Quercus sp. seq14	41016	2
+seq147	246659	Quercus sp. seq147	9286	1
+seq20	1517666	Quercus sp. seq20	62869	1
+seq59193	9	Quercus sp. seq59193	0	9
+seq61	801449	Quercus sp. seq61	41003	1
+seq65786	2	Quercus sp. seq65786	0	2
+seq65959	1	Quercus sp. seq65959	0	1
+seq65964	1	Quercus sp. seq65964	0	1
+seq63320	3	Ranunculus sp. seq63320	0	3
+seq28	1358182	Rosa sp. seq28	106774	1
+seq1	13864116	Rubus sp. seq1	216357	6
+seq14339	331	Rubus sp. seq14339	326	5
+seq16	1657230	Rubus sp. seq16	27304	1
+seq19	1530557	Rubus sp. seq19	99091	2
+seq2	13243736	Rubus sp. seq2	208540	8
+seq26482	148	Rubus sp. seq26482	145	3
+seq28428	134	Rubus sp. seq28428	130	4
+seq3018	1743	Rubus sp. seq3018	622	4
+seq33262	105	Rubus sp. seq33262	103	2
+seq43	1132018	Rubus sp. seq43	15510	1
+seq61216	5	Rubus sp. seq61216	0	5
+seq64262	3	Rubus sp. seq64262	0	3
+seq64593	2	Rubus sp. seq64593	0	2
+seq66112	1	Rubus sp. seq66112	0	1
+seq7	3187461	Rubus sp. seq7	233236	2
+seq429	50690	Rumex sp. seq429	2083	1
+seq18382	245	Tilia sp. seq18382	240	5
+seq476	41329	Tilia sp. seq476	4496	1
+seq23835	171	Triticum sp. seq23835	42	113
+seq26715	146	Triticum sp. seq26715	42	86

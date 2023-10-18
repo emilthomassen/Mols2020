@@ -1,0 +1,1505 @@
+---
+title: "Lists, richness plots and stacked barplots - ITS"
+author: "Emil Ellegaard Thomassen"
+date: "`r Sys.Date()"
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+
+The following script perform plots and analysis of the plant reads from the ITS dataset.
+
+# Analysis
+
+```{r Setup R and load packages}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.height = 5.5,
+	message = FALSE,
+	warning = FALSE,
+	autodep = TRUE,
+	cache = TRUE,
+	cache.lazy = FALSE,
+	tidy = TRUE,
+	tidy.opts = list(width.cutoff = 80)
+)
+rm(list=ls())
+gc()
+setwd("~/AU/Projects_git/Mols2020")
+Dir.Base <- here::here()
+
+
+
+# Installing packages as needed
+install.load.package <- function(x) {
+  if (!require(x, character.only = TRUE))
+    install.packages(x, repos='http://cran.us.r-project.org', dependencies = TRUE)
+  require(x, character.only = TRUE)
+}
+package_vec <- c("kableExtra", "tidyverse","png", "jpeg", "sp", "ncf","rgdal","MASS", "raster", "ggmap", "ggplot2", "BiodiversityR", "pheatmap", "knitr", "printr", "ade4", "vegan", "ROBITools", "ROBITaxonomy", "dplyr", "tidyr", "plotrix")
+sapply(package_vec, install.load.package)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, cache = TRUE, cache.lazy=FALSE, tidy.opts=list(width.cutoff=80),tidy=TRUE, fig.height=5.5)
+options(digits=4, width = 90)
+
+```
+
+
+```{r Generating input df and create genera list with reads}
+
+dataset<-readRDS("ITS/Local_analysis/output/RDS_files/dataset_final")
+
+#Generating input df
+
+
+#Create temporary df with read counts of each type in each sample from metabarcoding file
+df_tmp<-data.frame(dataset@reads)
+colnames(df_tmp)<-dataset@motus$final.otu
+
+
+#Create temporary df to build file with the columns (sample, species, count, totalreads, freq)
+df<-data.frame("sample"=c(), "species"=c(),"count"=c())
+df<-rbind(df, c(1,1,1))
+colnames(df)<-c("sample", "species", "count")
+
+
+#Add row to the dataframe for each sample/species combination
+for (i in 1:nrow(df_tmp)) {
+  print(i)
+  for (j in 1:ncol(df_tmp)) {
+   if (df_tmp[i,j]!=0) 
+     {df<-rbind(df, c(row.names(df_tmp)[i],colnames(df_tmp)[j],df_tmp[i,j]))
+     } 
+  }
+}
+
+#Subtract the first row (line 788) which was only used to keep correct format
+df<-df[-1,]
+
+#Change type of columns (sample=factor, count=numeric)
+df2<-data.frame("sample"=as.factor(df$sample), "species"=df$species, "count"=as.numeric(df$count))
+
+#Calculate total reads in each sample
+#Create df with unique sample names and totalreads vector
+totalreads1<-data.frame("sample"=as.factor(unique(df2$sample)))
+totalreads<-c()
+
+#Add value for total reads in each sample to the sample_count vector
+for (sample in unique(df2$sample)) {
+  x1<-which(df2$sample==sample)
+  x2<-sum(df2$count[x1[1]:x1[length(x1)]])
+  totalreads<-append(totalreads, rep(x2, each=length(x1))) #Each total count added as many times as each sample in represented in df2
+}
+
+#Add totalreads to df2
+df2<-cbind(df2,totalreads)
+
+
+#Calculate frequency of each species in the sample
+freq<-c()
+
+for (i in 1:nrow(df2)) {
+  x<-df2$count[i]/df2$totalreads[i]
+  freq<-append(freq,x)
+  
+  
+}
+
+
+#Add to df2
+df2<-cbind(df2, freq)
+
+#Save as RDS
+
+saveRDS(df2, file="ITS/Local_analysis/output/RDS_files/df_for_plots_and_analysis")
+
+#For genera
+
+#Create temporary df with read counts in each sample from metabarcoding file
+df_tmp<-data.frame(dataset@reads)
+colnames(df_tmp)<-dataset@motus$genus_name
+
+
+#Aggregate on genera
+id<-colnames(df_tmp)
+df_tmp<-t(df_tmp)
+df_tmp<-as.data.frame(df_tmp)
+df_tmp<-cbind(id,df_tmp)
+
+df_tmp<-aggregate( . ~ id, data=df_tmp, sum)
+rownames(df_tmp)<-df_tmp$id
+df_tmp$id<-NULL
+df_tmp<-t(df_tmp)
+
+#Create temporary df to build file with the columns (sample, species, count, totalreads, freq)
+df<-data.frame("sample"=c(), "genus"=c(),"count"=c())
+df<-rbind(df, c(1,1,1))
+colnames(df)<-c("sample", "genus", "count")
+
+
+#Add row to the dataframe for each sample/species combination
+for (i in 1:nrow(df_tmp)) {
+  print(i)
+  for (j in 1:ncol(df_tmp)) {df<-rbind(df, c(row.names(df_tmp)[i],colnames(df_tmp)[j],df_tmp[i,j]))} 
+}
+
+#Subtract the first row (line 788) which was only used to keep correct format
+df<-df[-1,]
+
+#Change type of columns (sample=factor, count=numeric)
+df2<-data.frame("sample"=as.factor(df$sample), "genus"=df$genus, "count"=as.numeric(df$count))
+
+#Calculate total reads in each sample
+#Create df with unique sample names and totalreads vector
+totalreads1<-data.frame("sample"=as.factor(unique(df2$sample)))
+totalreads<-c()
+
+#Add value for total reads in each sample to the sample_count vector
+for (sample in unique(df2$sample)) {
+  x1<-which(df2$sample==sample)
+  x2<-sum(df2$count[x1[1]:x1[length(x1)]])
+  totalreads<-append(totalreads, rep(x2, each=length(x1))) #Each total count added as many times as each sample in represented in df2
+}
+
+#Add totalreads to df2
+df2<-cbind(df2,totalreads)
+
+
+#Calculate frequency of each species in the sample
+freq<-c()
+
+for (i in 1:nrow(df2)) {
+  x<-df2$count[i]/df2$totalreads[i]
+  freq<-append(freq,x)
+  
+  
+}
+
+
+#Add to df2
+df2<-cbind(df2, freq)
+
+
+#Save as RDS
+
+saveRDS(df2, file="ITS/Local_analysis/output/RDS_files/df_for_plots_and_analysis_genera")
+
+#For families
+
+#Create temporary df with read counts in each sample from metabarcoding file
+df_tmp<-data.frame(dataset@reads)
+colnames(df_tmp)<-dataset@motus$family_name
+
+
+#Aggregate on family
+id<-colnames(df_tmp)
+df_tmp<-t(df_tmp)
+df_tmp<-as.data.frame(df_tmp)
+df_tmp<-cbind(id,df_tmp)
+
+df_tmp<-aggregate( . ~ id, data=df_tmp, sum)
+rownames(df_tmp)<-df_tmp$id
+df_tmp$id<-NULL
+df_tmp<-t(df_tmp)
+
+
+#Create temporary df to build file with the columns (sample, species, count, totalreads, freq)
+df<-data.frame("sample"=c(), "family"=c(),"count"=c())
+df<-rbind(df, c(1,1,1))
+colnames(df)<-c("sample", "family", "count")
+
+
+#Add row to the dataframe for each sample/species combination
+for (i in 1:nrow(df_tmp)) {
+  print(i)
+  for (j in 1:ncol(df_tmp)) {
+   if (df_tmp[i,j]!=0) 
+     {df<-rbind(df, c(row.names(df_tmp)[i],colnames(df_tmp)[j],df_tmp[i,j]))
+     } 
+  }
+}
+
+#Subtract the first row (line 788) which was only used to keep correct format
+df<-df[-1,]
+
+#Change type of columns (sample=factor, count=numeric)
+df2<-data.frame("sample"=as.factor(df$sample), "family"=df$family, "count"=as.numeric(df$count))
+
+#Calculate total reads in each sample
+#Create df with unique sample names and totalreads vector
+totalreads1<-data.frame("sample"=as.factor(unique(df2$sample)))
+totalreads<-c()
+
+#Add value for total reads in each sample to the sample_count vector
+for (sample in unique(df2$sample)) {
+  x1<-which(df2$sample==sample)
+  x2<-sum(df2$count[x1[1]:x1[length(x1)]])
+  totalreads<-append(totalreads, rep(x2, each=length(x1))) #Each total count added as many times as each sample in represented in df2
+}
+
+#Add totalreads to df2
+df2<-cbind(df2,totalreads)
+
+
+#Calculate frequency of each species in the sample
+freq<-c()
+
+for (i in 1:nrow(df2)) {
+  x<-df2$count[i]/df2$totalreads[i]
+  freq<-append(freq,x)
+  
+  
+}
+
+
+#Add to df2
+df2<-cbind(df2, freq)
+
+
+#Save as RDS
+
+saveRDS(df2, file="ITS/Local_analysis/output/RDS_files/df_for_plots_and_analysis_family")
+
+
+
+
+
+
+#Generate df with genera and reads
+
+dataset<-readRDS("ITS/Local_analysis/output/RDS_files/dataset_final")
+
+final.tax<-data.frame("order"=dataset@motus$order_name,"family"=dataset@motus$family_name,"genus"=dataset@motus$genus_name)
+write.csv2(final.tax,"ITS/Local_analysis/output/tables/orders_families_genera_plants.csv", row.names=TRUE)
+
+
+
+#Create temporary df with read counts in each sample from metabarcoding file
+df_tmp<-data.frame(dataset@reads)
+colnames(df_tmp)<-dataset@motus$genus_name
+
+
+#Aggregate on genera
+id<-colnames(df_tmp)
+df_tmp<-t(df_tmp)
+df_tmp<-as.data.frame(df_tmp)
+df_tmp<-cbind(id,df_tmp)
+
+df_tmp<-aggregate( . ~ id, data=df_tmp, sum)
+rownames(df_tmp)<-df_tmp$id
+df_tmp$id<-NULL
+df_tmp<-t(df_tmp)
+
+
+reads<-df_tmp
+
+reads<-t(reads)
+otu<-as.character(dataset@motus$final.otu)
+kingdom<-as.character(dataset@motus$kingdom_name)
+phylum<-as.character(dataset@motus$phylum_name)
+class<-as.character(dataset@motus$class_name)
+order<-as.character(dataset@motus$order_name)
+family<-as.character(dataset@motus$family_name)
+genus<-as.character(dataset@motus$genus_name)
+row.names(reads)<-colnames(df_tmp)
+
+total<-rowSums(reads)
+
+df_tax<-as.data.frame(cbind(kingdom,phylum,class,order,family,genus))
+df_tax<-unique(df_tax)
+
+df<-as.data.frame(cbind(reads,total,df_tax))
+df<-df[order(df$total, decreasing=TRUE),]
+
+#Aggregate on season/source
+
+eg<-NULL
+ee<-NULL
+mg<-NULL
+me<-NULL
+lg<-NULL
+le<-NULL
+
+for (i in 1:nrow(df)) {
+  eg<-append(eg,sum(df[i,which(dataset@samples$season=="early" & dataset@samples$source=="galloway")]))
+  ee<-append(ee,sum(df[i,which(dataset@samples$season=="early" & dataset@samples$source=="exmoor")]))
+  mg<-append(mg,sum(df[i,which(dataset@samples$season=="mid" & dataset@samples$source=="galloway")]))
+  me<-append(me,sum(df[i,which(dataset@samples$season=="mid" & dataset@samples$source=="exmoor")]))
+  lg<-append(lg,sum(df[i,which(dataset@samples$season=="late" & dataset@samples$source=="galloway")]))
+  le<-append(le,sum(df[i,which(dataset@samples$season=="late" & dataset@samples$source=="exmoor")]))
+}
+
+df_agg<-cbind(df[,c(240:246)],eg,ee,mg,me,lg,le)
+
+#Save as RDS
+
+saveRDS(df, file="ITS/Local_analysis/output/RDS_files/df_genera_reads")
+saveRDS(df_agg, file="ITS/Local_analysis/output/RDS_files/df_genera_reads_aggregated")
+
+#Export list
+write.csv2(df,"ITS/Local_analysis/output/tables/MOLS2020_plants_genera_with_reads.csv", row.names=TRUE)
+write.csv2(df_agg,"ITS/Local_analysis/output/tables/MOLS2020_plants_genera_with_reads_aggregated.csv", row.names=TRUE)
+
+```
+
+
+
+```{r Richness plot and stacked barplot Genera}
+
+#Plotting the richness of sampling time as well as stacked barplot of all sampling times
+
+
+#Loading libraries
+library(tidyverse)
+library(ROBITools)
+library(ROBITaxonomy)
+library(ggpubr)
+library(dplyr)
+library(ggplot2)
+library(ggsci)
+library(RColorBrewer)
+
+#Set level order for plots
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+#Load data
+df_raw <- readRDS("ITS/Local_analysis/output/RDS_files/df_for_plots_and_analysis_genera")
+dataset<-readRDS("ITS/Local_analysis/output/RDS_files/dataset_final")
+
+
+#Remove unidentified genera from list for richness calculations
+df_raw2<-df_raw[which(grepl("genus",df_raw$genus)==FALSE),]
+df_raw3<-df_raw2[which(grepl("seq",df_raw2$genus)==FALSE),]
+
+
+
+Samples<-unique(df_raw3$sample)
+Richness<-list()
+
+for (i in 1:length(Samples)){
+  df<-as.data.frame(Samples[i])
+  colnames(df)<-c("Samples")
+  Count<-sum(df_raw3$count[df_raw3$sample==Samples[i]] !=0)
+  df<-cbind(df, Count)
+  Richness<-rbind(Richness, df)
+}
+
+Richness<-Richness %>%
+  dplyr::mutate(Samples=factor(Samples))  
+
+
+#Mean richness pr. month - Galloway
+
+Richness<-cbind(Richness, "source"=dataset@samples$source, "month"=dataset@samples$month, "lat"=dataset@samples$lat, "lon"=dataset@samples$lon)
+
+Richness<-Richness[order(Richness$month),]
+
+saveRDS(Richness, file="ITS/Local_analysis/output/RDS_files/Richness_df_genera")
+
+Richness_gal<-subset(Richness, Richness$source=="galloway")
+Richness_exm<-subset(Richness, Richness$source=="exmoor")
+
+
+#Calculate std error
+
+Gal_agg<-aggregate( . ~ month, data=Richness_gal, std.error)
+Exm_agg<-aggregate( . ~ month, data=Richness_exm, std.error)
+
+se_gal<-c(rep(Gal_agg$Count[1], each=9),
+          rep(Gal_agg$Count[2], each=9),
+          rep(Gal_agg$Count[3:6], each=10),
+          rep(Gal_agg$Count[7], each=9),
+          rep(Gal_agg$Count[8], each=10),
+          rep(Gal_agg$Count[9], each=5),
+          rep(Gal_agg$Count[10:12], each=10))
+
+se_exm<-c(rep(Exm_agg$Count[1], each=11),
+          rep(Exm_agg$Count[2], each=10),
+          rep(Exm_agg$Count[3], each=10),
+          rep(Exm_agg$Count[4], each=10),
+          rep(Exm_agg$Count[5], each=10),
+          rep(Exm_agg$Count[6], each=10),
+          rep(Exm_agg$Count[7], each=11),
+          rep(Exm_agg$Count[8], each=10),
+          rep(Exm_agg$Count[9], each=15),
+          rep(Exm_agg$Count[10], each=10),
+          rep(Exm_agg$Count[11], each=10),
+          rep(Exm_agg$Count[12], each=10)
+          
+)
+
+Richness_gal<-cbind(Richness_gal, se_gal)
+Richness_exm<-cbind(Richness_exm, se_exm)
+
+#Plotting species richness over time
+#Galloway
+Species_Richness_gal<-ggplot(Richness_gal, aes(x=factor(month, level=level_order), y=Count, group=1)) +
+  ylim(1,140) +
+  geom_rect(data=NULL,aes(xmin=-Inf,xmax="March",ymin=-Inf,ymax=Inf),fill="azure2") +
+  geom_rect(data=NULL,aes(xmin="March",xmax="June",ymin=-Inf,ymax=Inf),fill="darkseagreen1") +
+  geom_rect(data=NULL,aes(xmin="June",xmax="September",ymin=-Inf,ymax=Inf),fill="darkgoldenrod2") +
+  geom_rect(data=NULL,aes(xmin="September",xmax="December",ymin=-Inf,ymax=Inf),fill="burlywood4") +
+  geom_rect(data=NULL,aes(xmin="December",xmax=Inf,ymin=-Inf,ymax=Inf),fill="azure2") +
+  geom_point(stat="summary", fun=mean) +
+  geom_errorbar(stat="summary", aes(x=factor(month, level=level_order), ymin=Count-se_gal, ymax=Count+se_gal), width=0.5) +
+  scale_y_continuous(breaks=c(0,5,10,15,20,25,30,35,40)) +
+  stat_summary(fun=mean, geom="line") +
+  ggtitle("Diet richness (genera), Galloway Cattle") +
+  annotate("text", x=1, y=35, label="Winter", cex=3) +
+  annotate("text", x=4, y=35, label ="Spring", cex=3) +
+  annotate("text", x=7, y=35, label="Summer", cex=3) +
+  annotate("text", x=10, y=35, label="Autumn", cex=3) +
+  theme_bw() +
+  coord_cartesian(ylim=c(1,40)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(hjust = 0.5)) +
+  xlab("Month") +
+  ylab("Number of genera")
+
+Species_Richness_gal
+
+
+#Exmoor
+Species_Richness_exm<-ggplot(Richness_exm, aes(x=factor(month, level=level_order), y=Count, group=1)) + 
+  geom_rect(data=NULL,aes(xmin=-Inf,xmax="March",ymin=-Inf,ymax=Inf),fill="azure2") +
+  geom_rect(data=NULL,aes(xmin="March",xmax="June",ymin=-Inf,ymax=Inf),fill="darkseagreen1") +
+  geom_rect(data=NULL,aes(xmin="June",xmax="September",ymin=-Inf,ymax=Inf),fill="darkgoldenrod2") +
+  geom_rect(data=NULL,aes(xmin="September",xmax="December",ymin=-Inf,ymax=Inf),fill="burlywood4") +
+  geom_rect(data=NULL,aes(xmin="December",xmax=Inf,ymin=-Inf,ymax=Inf),fill="azure2") +
+  geom_point(stat="summary", fun=mean) +
+  geom_errorbar(stat="summary", aes(x=factor(month, level=level_order), ymin=Count-se_exm, ymax=Count+se_exm), width=0.5) +
+  scale_y_continuous(breaks=c(0,5,10,15,20,25,30,35,40)) +
+  stat_summary(fun=mean, geom="line") +
+  ggtitle("Det richness (genera), Exmoor ponies") +
+  annotate("text", x=1, y=35, label="Winter", cex=3) +
+  annotate("text", x=4, y=35, label ="Spring", cex=3) +
+  annotate("text", x=7, y=35, label="Summer", cex=3) +
+  annotate("text", x=10, y=35, label="Autumn", cex=3) +
+  theme_bw() +
+  coord_cartesian(ylim=c(1,40)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(hjust = 0.5)) +
+  xlab("Month") +
+  ylab("Number of genera")
+
+Species_Richness_exm
+
+#Both
+Species_Richness<-ggplot(Richness_gal, aes(x=factor(month, level=level_order), y=Count, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  geom_point(stat="summary", fun=mean, colour="darkseagreen4") +
+  geom_errorbar(stat="summary", aes(x=factor(month, level=level_order), ymin=Count-se_gal, ymax=Count+se_gal), width=0.5, colour="darkseagreen4") +
+  geom_point(data=Richness_exm, stat="summary", fun=mean, colour="dodgerblue3") +
+  geom_errorbar(data=Richness_exm, stat="summary", aes(x=factor(month, level=level_order), ymin=Count-se_exm, ymax=Count+se_exm), width=0.5, colour="dodgerblue3") +
+  scale_y_continuous(breaks=c(0,5,10,15,20,25,30,35,40,45,50,55,60)) +
+  stat_summary(fun=mean, geom="line", colour="darkseagreen4") +
+  stat_summary(data=Richness_exm, fun=mean, geom="line", colour="dodgerblue3") +
+  #ggtitle("Diet richness (genera), both species") +
+  annotate("text", x=2.5, y=40, label="Early season", cex=3) +
+  annotate("text", x=6.5, y=40, label ="Mid season", cex=3) +
+  annotate("text", x=10.5, y=40, label="Late season", cex=3) +
+  annotate("text", x=2.5, y=37, label="(***)", cex=3) +
+  annotate("text", x=6.5, y=37, label="ns.", cex=3) +
+  annotate("text", x=10.5, y=37, label="(***)", cex=3) +
+  theme_bw() +
+  coord_cartesian(ylim=c(1,40)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(hjust = 0.5)) +
+  xlab("Month") +
+  ylab("Number of genera")
+
+Species_Richness
+
+
+ggarrange(Species_Richness, labels = c("A"), ncol = 1, nrow = 1)
+ggsave("ITS/Local_analysis/output/plots/SpeciesRichnessBothOneFigGenera.pdf", width=10, height=6)
+
+ggarrange(Species_Richness, ncol = 1, nrow = 1)
+ggsave("ITS/Local_analysis/output/figures/figure3.pdf", width=10, height=5)
+
+saveRDS(Species_Richness, file="ITS/Local_analysis/output/RDS_files/Species_Richness_genera")
+
+ggarrange(Species_Richness_gal, Species_Richness_exm, labels = c("A", "B"), ncol = 1, nrow = 2)
+ggsave("ITS/Local_analysis/output/plots/SpeciesRichnessBothGenera.pdf", width=14, height=8)
+
+RichnessBoth<-ggarrange(Species_Richness_gal, Species_Richness_exm, labels = c("A", "B"), ncol = 1, nrow = 2)
+
+saveRDS(RichnessBoth, file="ITS/Local_analysis/output/RDS_files/RichnessBothGenera")
+
+#ggsave("Species_Richness_all_time.pdf",width=15,height=8.5)
+
+
+
+
+#### STACKED BARPLOTS
+
+#Find most abundant species across all samples
+
+samples.data = read.table("ITS/MetaBarFlow/output/Metadata_MOLS2020_plants_corrected_source.txt",
+                        header=TRUE,row.names=1,na.strings="NA")
+
+
+
+source_vec<-c()
+month_vec<-c()
+
+for (i in 1:nrow(df_raw)) {
+  sample<-as.character(df_raw$sample[i])
+  idx<-which(row.names(samples.data)==sample)
+  source_vec<-append(source_vec, as.character(samples.data$source[idx]))
+  month_vec<-append(month_vec, as.character(samples.data$month[idx]))
+}
+
+source<-as.factor(source_vec)
+month<-as.factor(month_vec)
+
+df_raw<-cbind(df_raw, source, month)
+
+df_gal<-subset(df_raw, df_raw$source=="galloway")
+df_exm<-subset(df_raw, df_raw$source=="exmoor")
+
+#Calculate mean and SEM for all plant genera
+
+#Cattle
+gens_gal<-unique(df_gal$genus)
+means_gal<-NULL
+sems_gal<-NULL
+
+for (i in gens_gal) {
+  m<-mean(df_gal$count[which(df_gal$genus==i)])
+  sem<-std.error(df_gal$count[which(df_gal$genus==i)])
+  means_gal<-append(means_gal,m)
+  sems_gal<-append(sems_gal,sem)
+}
+
+gal_stats<-as.data.frame(cbind(gens_gal, means_gal,sems_gal))
+gal_stats$means_gal<-as.numeric(gal_stats$means_gal)
+gal_stats$sems_gal<-as.numeric(gal_stats$sems_gal)
+gal_stats<-gal_stats[order(gal_stats$means_gal),]
+
+#Horses
+gens_exm<-unique(df_exm$genus)
+means_exm<-NULL
+sems_exm<-NULL
+
+for (i in gens_exm) {
+  m<-mean(df_exm$count[which(df_exm$genus==i)])
+  sem<-std.error(df_exm$count[which(df_exm$genus==i)])
+  means_exm<-append(means_exm,m)
+  sems_exm<-append(sems_exm,sem)
+}
+
+exm_stats<-as.data.frame(cbind(gens_exm, means_exm,sems_exm))
+exm_stats$means_exm<-as.numeric(exm_stats$means_exm)
+exm_stats$sems_exm<-as.numeric(exm_stats$sems_exm)
+exm_stats<-exm_stats[order(exm_stats$means_exm),]
+
+#Find most abundant genera
+
+#Galloway
+Genus<-unique(df_gal$genus)
+abun<-list()
+
+for (i in 1:length(Genus)){
+  df<-as.data.frame(Genus[i])
+  colnames(df)<-c("Genus")
+  Count<-sum(df_gal$count[df_gal$genus==Genus[i]])
+  df<-cbind(df, Count)
+  abun<-rbind(abun, df)
+}
+
+abundance<-abun[order(abun$Count),c(1,2)]
+
+write.table(abundance, file="ITS/Local_analysis/output/textfiles/abundance_plants_galloway.txt")
+
+abundance_gal<-abundance
+
+#Create vector of 20 most abundant species/ASVs
+high_10_gal<-as.character(abundance$Genus[(nrow(abundance)-9):(nrow(abundance))])
+
+#For use in functionality
+high_30_gal<-as.character(abundance$Genus[(nrow(abundance)-29):(nrow(abundance))])
+
+df_gal_30<-df_gal
+
+#Check if species is in the 10 most abundant - if not, change species to "Other"
+for (i in 1:nrow(df_gal)) {
+  x<-as.character(df_gal$genus[i])
+  vec<-grepl(as.character(x), high_10_gal, fixed=TRUE)
+  if (sum(vec)==0) {df_gal$genus[i]="Other"     }
+}
+
+
+#Set to factor
+df_gal$genus <- factor(df_gal$genus, levels=c(sort(high_10_gal),"Other"))
+
+
+#Rename genus column to Genus
+df_gal<-df_gal %>%
+  dplyr::rename(Genus=genus)
+
+#Change order of sampling time
+df_gal<-df_gal %>%
+  dplyr::mutate(sample=factor(sample, levels=c(  "JAN1","JAN2","JAN3","JAN4","JAN5","JAN6","JAN7","JAN8","JAN9","JAN10","JAN11","JAN12","JAN13","JAN14","JAN15","JAN16","JAN17","JAN18","JAN19","JAN20","FEB1","FEB2","FEB3","FEB4","FEB5","FEB6","FEB7","FEB8","FEB9","FEB10","FEB11","FEB12","FEB13","FEB14","FEB15","FEB16","FEB17","FEB18","FEB19","FEB20","MAR1","MAR2","MAR3","MAR4","MAR5","MAR6","MAR7","MAR8","MAR9","MAR10","MAR11","MAR12","MAR13","MAR14","MAR15","MAR16","MAR17","MAR18","MAR19","MAR20","APR1","APR2","APR3","APR4","APR5","APR6","APR7","APR8","APR9","APR10","APR11","APR12","APR13","APR14","APR15","APR16","APR17","APR18","APR19","APR20","MAY1","MAY2","MAY3","MAY4","MAY5","MAY6","MAY7","MAY8","MAY9","MAY10","MAY11","MAY12","MAY13","MAY14","MAY15","MAY16","MAY17","MAY18","MAY19","MAY20","JUN1","JUN2","JUN3","JUN4","JUN5","JUN6","JUN7","JUN8","JUN9","JUN10","JUN11","JUN12","JUN13","JUN14","JUN15","JUN16","JUN17","JUN18","JUN19","JUN20","JUL1","JUL2","JUL3","JUL4","JUL5","JUL6","JUL7","JUL8","JUL9","JUL10","JUL11","JUL12","JUL13","JUL14","JUL15","JUL16","JUL17","JUL18","JUL19","JUL20","AUG1","AUG2","AUG3","AUG4","AUG5","AUG6","AUG7","AUG8","AUG9","AUG10","AUG11","AUG12","AUG13","AUG14","AUG15","AUG16","AUG17","AUG18","AUG19","AUG20","SEP1","SEP2","SEP3","SEP4","SEP5","SEP6","SEP7","SEP8","SEP9","SEP10","SEP11","SEP12","SEP13","SEP14","SEP15","SEP16","SEP17","SEP18","SEP19","SEP20","OCT1","OCT2","OCT3","OCT4","OCT5","OCT6","OCT7","OCT8","OCT9","OCT10","OCT11","OCT12","OCT13","OCT14","OCT15","OCT16","OCT17","OCT18","OCT19","OCT20","NOV1","NOV2","NOV3","NOV4","NOV5","NOV6","NOV7","NOV8","NOV9","NOV10","NOV11","NOV12","NOV13","NOV14","NOV15","NOV16","NOV17","NOV18","NOV19","NOV20","DEC1","DEC2","DEC3","DEC4","DEC5","DEC6","DEC7","DEC8","DEC9","DEC10","DEC11","DEC12","DEC13","DEC14","DEC15","DEC16","DEC17","DEC18","DEC19","DEC20"
+)))
+
+
+
+#Sum all "other" reads
+df_gal2<-aggregate(.~sample+Genus, data=df_gal, FUN=sum)
+df_gal<-df_gal2[order(df_gal2$sample),]
+#Now totalreads are not valid for "Others" - true value assigned
+df_gal$totalreads[which(df_gal$Genus=="Other")]<-750535
+#Delete source and month columns
+df_gal<-df_gal[,-c(6,7)]
+#Add month
+month_vec<-c()
+
+for (i in 1:nrow(df_gal)) {
+  sample<-as.character(df_gal$sample[i])
+  idx<-which(row.names(samples.data)==sample)
+  month_vec<-append(month_vec, as.character(samples.data$month[idx]))
+}
+
+month<-as.factor(month_vec)
+
+df_gal<-cbind(df_gal, month)
+
+
+#Adding 21 color option
+nb.cols <- 6
+#m<-met.brewer("Lakota", nb.cols, type="discrete")
+#mycolorsbase<-append(m,c("#e449cf","#f53838","#fff000","#5bff42","#a1a1a1","#c642ff","#855600","#c0ffb8","#2e58ff"))
+#mycolorsbase<-sample(mycolorsbase)
+
+mycolorsbase<-c("#931e18","#a1a1a1","#04a3bd","#f0be3d","#20235b","#247d3f","#da7901","#e449cf","#855600","#2e58ff","#c0ffb8","#5bff42","#f53838","#fff000","#c642ff")
+#m <- colorRampPalette(brewer.pal(12, "Paired"))(nb.cols)
+#mycolorsbase<-sample(rainbow(13))
+#mycolorsbase<-c(m[13],m[1],m[7],m[2],m[8],m[3],m[9],m[4],m[10],m[5],m[11],m[6],m[12])
+
+#mycolorsbase <-c("darkolivegreen3","chocolate","brown2","darkolivegreen1","darkseagreen4","brown4","burlywood4","darkolivegreen","burlywood3","darkseagreen1","cornflowerblue","bisque4","chocolate1","darkgoldenrod2","darkorange4","burlywood1","brown","darkred","darkseagreen2","burlywood2","chartreuse3","darkkhaki","cadetblue4")
+#mycolorsbase <-c("burlywood4","beige","burlywood3","darkgreen","bisque","darkolivegreen","burlywood2","darkolivegreen1","darkolivegreen2","darkolivegreen3","darkolivegreen4","darkseagreen","burlywood1","burlywood","darkseagreen2","cadetblue","steelblue","bisque2","darkseagreen3","cornflowerblue","brown","beige","darkorange")
+#mycolors<-c('#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6', '#bfef45', '#fabed4', '#469990', '#dcbeff', '#9A6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#a9a9a9', '#000000')
+
+
+mycolors<-mycolorsbase[c(2:3,5:9,11:13)]
+mycolors<-append(mycolors,"black")
+
+
+#Plotting Galloway
+stacked_gal<-ggplot(df_gal, aes(fill=Genus, y=freq, x=sample)) +
+  guides(fill=guide_legend(ncol=1)) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_manual(values = mycolors) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),axis.text.x = element_text(angle = 90, vjust=0.5,hjust = 0.5),legend.text = element_text(colour="black", size = 10, face = "italic")) +
+  xlab("Sample") +
+  ylab("Proportion of reads")
+
+stacked_gal
+
+
+#Exmoor
+Genus<-unique(df_exm$genus)
+abun<-list()
+
+for (i in 1:length(Genus)){
+  df<-as.data.frame(Genus[i])
+  colnames(df)<-c("Genus")
+  Count<-sum(df_exm$count[df_exm$genus==Genus[i]])
+  df<-cbind(df, Count)
+  abun<-rbind(abun, df)
+}
+
+abundance<-abun[order(abun$Count),c(1,2)]
+
+write.table(abundance, file="ITS/Local_analysis/output/textfiles/abundance_plants_exmoor.txt")
+
+abundance_exm<-abundance
+
+#Create vector of 20 most abundant genus/ASVs
+high_10_exm<-as.character(abundance$Genus[(nrow(abundance)-9):(nrow(abundance))])
+
+#For use in functionality plot
+high_30_exm<-as.character(abundance$Genus[(nrow(abundance)-29):(nrow(abundance))])
+
+df_exm_30<-df_exm
+
+
+#Check if genus is in the 20 most abundant - if not, change genus to "Other"
+for (i in 1:nrow(df_exm)) {
+  x<-as.character(df_exm$genus[i])
+  vec<-grepl(as.character(x), high_10_exm, fixed=TRUE)
+  if (sum(vec)==0) {df_exm$genus[i]="Other"     }
+}
+
+
+#Set to factor
+df_exm$genus <- factor(df_exm$genus, levels=c(sort(high_10_exm),"Other"))
+
+
+
+#Rename genus column to Genus
+df_exm<-df_exm %>%
+  dplyr::rename(Genus=genus)
+
+#Change order of sampling time
+df_exm<-df_exm %>%
+  dplyr::mutate(sample=factor(sample, levels=c(  "JAN1","JAN2","JAN3","JAN4","JAN5","JAN6","JAN7","JAN8","JAN9","JAN10","JAN11","JAN12","JAN13","JAN14","JAN15","JAN16","JAN17","JAN18","JAN19","JAN20","FEB1","FEB2","FEB3","FEB4","FEB5","FEB6","FEB7","FEB8","FEB9","FEB10","FEB11","FEB12","FEB13","FEB14","FEB15","FEB16","FEB17","FEB18","FEB19","FEB20","MAR1","MAR2","MAR3","MAR4","MAR5","MAR6","MAR7","MAR8","MAR9","MAR10","MAR11","MAR12","MAR13","MAR14","MAR15","MAR16","MAR17","MAR18","MAR19","MAR20","APR1","APR2","APR3","APR4","APR5","APR6","APR7","APR8","APR9","APR10","APR11","APR12","APR13","APR14","APR15","APR16","APR17","APR18","APR19","APR20","MAY1","MAY2","MAY3","MAY4","MAY5","MAY6","MAY7","MAY8","MAY9","MAY10","MAY11","MAY12","MAY13","MAY14","MAY15","MAY16","MAY17","MAY18","MAY19","MAY20","JUN1","JUN2","JUN3","JUN4","JUN5","JUN6","JUN7","JUN8","JUN9","JUN10","JUN11","JUN12","JUN13","JUN14","JUN15","JUN16","JUN17","JUN18","JUN19","JUN20","JUL1","JUL2","JUL3","JUL4","JUL5","JUL6","JUL7","JUL8","JUL9","JUL10","JUL11","JUL12","JUL13","JUL14","JUL15","JUL16","JUL17","JUL18","JUL19","JUL20","AUG1","AUG2","AUG3","AUG4","AUG5","AUG6","AUG7","AUG8","AUG9","AUG10","AUG11","AUG12","AUG13","AUG14","AUG15","AUG16","AUG17","AUG18","AUG19","AUG20","SEP1","SEP2","SEP3","SEP4","SEP5","SEP6","SEP7","SEP8","SEP9","SEP10","SEP11","SEP12","SEP13","SEP14","SEP15","SEP16","SEP17","SEP18","SEP19","SEP20","OCT1","OCT2","OCT3","OCT4","OCT5","OCT6","OCT7","OCT8","OCT9","OCT10","OCT11","OCT12","OCT13","OCT14","OCT15","OCT16","OCT17","OCT18","OCT19","OCT20","NOV1","NOV2","NOV3","NOV4","NOV5","NOV6","NOV7","NOV8","NOV9","NOV10","NOV11","NOV12","NOV13","NOV14","NOV15","NOV16","NOV17","NOV18","NOV19","NOV20","DEC1","DEC2","DEC3","DEC4","DEC5","DEC6","DEC7","DEC8","DEC9","DEC10","DEC11","DEC12","DEC13","DEC14","DEC15","DEC16","DEC17","DEC18","DEC19","DEC20"
+)))
+
+#Sum all "other" reads
+df_exm2<-aggregate(.~sample+Genus, data=df_exm, FUN=sum)
+df_exm<-df_exm2[order(df_exm2$sample),]
+#Now totalreads are not valid for "Others" - true value assigned
+df_exm$totalreads[which(df_exm$Genus=="Other")]<-750535
+#Delete source and month columns
+df_exm<-df_exm[,-c(6,7)]
+#Add month
+month_vec<-c()
+
+for (i in 1:nrow(df_exm)) {
+  sample<-as.character(df_exm$sample[i])
+  idx<-which(row.names(samples.data)==sample)
+  month_vec<-append(month_vec, as.character(samples.data$month[idx]))
+}
+
+month<-as.factor(month_vec)
+
+df_exm<-cbind(df_exm, month)
+
+mycolors<-mycolorsbase[c(1:4,7,9:13)]
+mycolors<-append(mycolors,"black")
+
+#Plotting Exmoor
+stacked_exm<-ggplot(df_exm, aes(fill=Genus, y=freq, x=sample)) +
+  guides(fill=guide_legend(ncol=1)) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_manual(values = mycolors) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),axis.text.x = element_text(angle = 90, vjust=0.5,hjust = 0.5),legend.text = element_text(colour="black", size = 10, face = "italic")) +
+  xlab("Sample") +
+  ylab("Proportion of reads")
+
+
+ggarrange(stacked_gal,stacked_exm, labels = c("A", "B"), ncol = 1, nrow = 2)
+ggsave("ITS/Local_analysis/output/plots/StackedBothGenera.pdf", width=14, height=8)
+
+StackedBoth<-ggarrange(stacked_gal,stacked_exm, labels = c("A", "B"), ncol = 1, nrow = 2)
+
+saveRDS(StackedBoth, file="ITS/Local_analysis/output/RDS_files/StackedBothGenera")
+
+#ggsave("Stacked_barplot_all_time.pdf",width=15,height=8.5)
+
+#Unique for each species
+
+gal_uniq<-setdiff(abundance_gal$Genus, abundance_exm$Genus)
+exm_uniq<-setdiff(abundance_exm$Genus, abundance_gal$Genus)
+
+
+
+#Aggregate samples by month
+
+gal_month<-df_gal[,c(-1,-4,-5)]
+exm_month<-df_exm[,c(-1,-4,-5)]
+
+gal_month<-aggregate(. ~month+Genus, data=gal_month, FUN=mean)
+exm_month<-aggregate(. ~month+Genus, data=exm_month, FUN=mean)
+
+colnames(gal_month)[1]="Month"
+colnames(exm_month)[1]="Month"
+
+gal_month_20<-gal_month
+exm_month_20<-exm_month
+
+#Calculate total reads in each month
+
+jan<-c()
+feb<-c()
+mar<-c()
+apr<-c()
+may<-c()
+jun<-c()
+jul<-c()
+aug<-c()
+sep<-c()
+oct<-c()
+nov<-c()
+dec<-c()
+for (i in 1:nrow(gal_month)) {
+  if (gal_month$Month[i]=="January") {jan<-append(jan, gal_month$count[i])}
+  if (gal_month$Month[i]=="February") {feb<-append(feb, gal_month$count[i])}
+  if (gal_month$Month[i]=="March") {mar<-append(mar, gal_month$count[i])}
+  if (gal_month$Month[i]=="April") {apr<-append(apr, gal_month$count[i])}
+  if (gal_month$Month[i]=="May") {may<-append(may, gal_month$count[i])}
+  if (gal_month$Month[i]=="June") {jun<-append(jun, gal_month$count[i])}
+  if (gal_month$Month[i]=="July") {jul<-append(jul, gal_month$count[i])}
+  if (gal_month$Month[i]=="August") {aug<-append(aug, gal_month$count[i])}
+  if (gal_month$Month[i]=="September") {sep<-append(sep, gal_month$count[i])}
+  if (gal_month$Month[i]=="October") {oct<-append(oct, gal_month$count[i])}
+  if (gal_month$Month[i]=="November") {nov<-append(nov, gal_month$count[i])}
+  if (gal_month$Month[i]=="December") {dec<-append(dec, gal_month$count[i])}
+}
+total_each_gal<-sapply(list(jan,feb,mar,apr,may,jun,jul,aug,sep,oct,nov,dec), FUN=sum)
+
+totalreads<-c(rep(1, each=nrow(gal_month)))
+
+gal_month<-cbind(gal_month, totalreads)
+
+for (i in 1:nrow(gal_month)) {
+  if (gal_month$Month[i]=="January") {gal_month$totalreads[i]=total_each_gal[1]}
+  if (gal_month$Month[i]=="February") {gal_month$totalreads[i]=total_each_gal[2]}
+  if (gal_month$Month[i]=="March") {gal_month$totalreads[i]=total_each_gal[3]}
+  if (gal_month$Month[i]=="April") {gal_month$totalreads[i]=total_each_gal[4]}
+  if (gal_month$Month[i]=="May") {gal_month$totalreads[i]=total_each_gal[5]}
+  if (gal_month$Month[i]=="June") {gal_month$totalreads[i]=total_each_gal[6]}
+  if (gal_month$Month[i]=="July") {gal_month$totalreads[i]=total_each_gal[7]}
+  if (gal_month$Month[i]=="August") {gal_month$totalreads[i]=total_each_gal[8]}
+  if (gal_month$Month[i]=="September") {gal_month$totalreads[i]=total_each_gal[9]}
+  if (gal_month$Month[i]=="October") {gal_month$totalreads[i]=total_each_gal[10]}
+  if (gal_month$Month[i]=="November") {gal_month$totalreads[i]=total_each_gal[11]}
+  if (gal_month$Month[i]=="December") {gal_month$totalreads[i]=total_each_gal[12]}
+  }
+
+freq<-c()
+
+for (i in 1:nrow(gal_month)) {
+  x<-gal_month$count[i]/gal_month$totalreads[i]
+  freq<-append(freq,x)
+}
+
+gal_month<-cbind(gal_month, freq)
+
+#And for exmoor ponies
+
+
+jan<-c()
+feb<-c()
+mar<-c()
+apr<-c()
+may<-c()
+jun<-c()
+jul<-c()
+aug<-c()
+sep<-c()
+oct<-c()
+nov<-c()
+dec<-c()
+
+for (i in 1:nrow(exm_month)) {
+  if (exm_month$Month[i]=="January") {jan<-append(jan, exm_month$count[i])}
+  if (exm_month$Month[i]=="February") {feb<-append(feb, exm_month$count[i])}
+  if (exm_month$Month[i]=="March") {mar<-append(mar, exm_month$count[i])}
+  if (exm_month$Month[i]=="April") {apr<-append(apr, exm_month$count[i])}
+  if (exm_month$Month[i]=="May") {may<-append(may, exm_month$count[i])}
+  if (exm_month$Month[i]=="June") {jun<-append(jun, exm_month$count[i])}
+  if (exm_month$Month[i]=="July") {jul<-append(jul, exm_month$count[i])}
+  if (exm_month$Month[i]=="August") {aug<-append(aug, exm_month$count[i])}
+  if (exm_month$Month[i]=="September") {sep<-append(sep, exm_month$count[i])}
+  if (exm_month$Month[i]=="October") {oct<-append(oct, exm_month$count[i])}
+  if (exm_month$Month[i]=="November") {nov<-append(nov, exm_month$count[i])}
+  if (exm_month$Month[i]=="December") {dec<-append(dec, exm_month$count[i])}
+}
+total_each_exm<-sapply(list(jan,feb,mar,apr,may,jun,jul,aug,sep,oct,nov,dec), FUN=sum)
+
+totalreads<-c(rep(1, each=nrow(exm_month)))
+
+exm_month<-cbind(exm_month, totalreads)
+
+for (i in 1:nrow(exm_month)) {
+  if (exm_month$Month[i]=="January") {exm_month$totalreads[i]=total_each_exm[1]}
+  if (exm_month$Month[i]=="February") {exm_month$totalreads[i]=total_each_exm[2]}
+  if (exm_month$Month[i]=="March") {exm_month$totalreads[i]=total_each_exm[3]}
+  if (exm_month$Month[i]=="April") {exm_month$totalreads[i]=total_each_exm[4]}
+  if (exm_month$Month[i]=="May") {exm_month$totalreads[i]=total_each_exm[5]}
+  if (exm_month$Month[i]=="June") {exm_month$totalreads[i]=total_each_exm[6]}
+  if (exm_month$Month[i]=="July") {exm_month$totalreads[i]=total_each_exm[7]}
+  if (exm_month$Month[i]=="August") {exm_month$totalreads[i]=total_each_exm[8]}
+  if (exm_month$Month[i]=="September") {exm_month$totalreads[i]=total_each_exm[9]}
+  if (exm_month$Month[i]=="October") {exm_month$totalreads[i]=total_each_exm[10]}
+  if (exm_month$Month[i]=="November") {exm_month$totalreads[i]=total_each_exm[11]}
+  if (exm_month$Month[i]=="December") {exm_month$totalreads[i]=total_each_exm[12]}
+  }
+
+freq<-c()
+
+for (i in 1:nrow(exm_month)) {
+  x<-exm_month$count[i]/exm_month$totalreads[i]
+  freq<-append(freq,x)
+}
+
+exm_month<-cbind(exm_month, freq)
+
+mycolors<-mycolorsbase[c(2:3,5:9,11:13)]
+mycolors<-append(mycolors,"black")
+
+#Plotting Galloway
+stacked_gal_months<-ggplot(gal_month, aes(fill=Genus, y=freq, x=factor(Month, level=level_order))) +
+  guides(fill=guide_legend(ncol=1)) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_manual(values = mycolors) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),axis.text.x = element_text(angle = 75, vjust=0.5,hjust = 0.5,size=24),axis.text.y = element_text(size=24), axis.title.y = element_text(size=24),legend.text = element_text(colour="black", size = 24, face = "italic"), legend.title = element_text(size=24)) +
+  xlab("Month") +
+  ylab("Proportion of reads")
+
+mycolors<-mycolorsbase[c(1:4,7,9:13)]
+mycolors<-append(mycolors,"black")
+
+#Plotting Exmoor
+stacked_exm_months<-ggplot(exm_month, aes(fill=Genus, y=freq, x=factor(Month, level=level_order))) +
+  guides(fill=guide_legend(ncol=1)) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_manual(values = mycolors) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),axis.text.x = element_text(angle = 75, vjust=0.5,hjust = 0.5,size=24),axis.text.y = element_text(size=24), axis.title.y = element_text(size=24),legend.text = element_text(colour="black", size = 24, face = "italic"), legend.title = element_text(size=24)) +
+  xlab("Month") +
+  ylab("Proportion of reads")
+
+
+
+ggarrange(stacked_gal_months, stacked_exm_months, labels = c("A", "B"), ncol = 1, nrow = 2)
+ggsave("ITS/Local_analysis/output/plots/StackedBothMonthsGenera.pdf", width=14, height=8)
+
+StackedBothMonths<-ggarrange(stacked_gal_months, stacked_exm_months, labels = c("A", "B"), ncol = 1, nrow = 2)
+
+saveRDS(StackedBothMonths, file="ITS/Local_analysis/output/RDS_files/StackedBothMonthsGenera")
+
+##TEMP - only AUG for presentation at Skovsgaard ############################################
+
+all_month<-rbind(gal_month[which(gal_month$Month=="August"),],exm_month[which(exm_month$Month=="August"),])
+all_month$"source"<-rep(c("cattle","horse"), each=11)
+all_month$source<-as.factor(all_month$source)
+
+#all_month$Genus<-factor(all_month$Genus, levels=sort(levels(all_month$Genus)))
+
+#Set to factor
+all_month$Genus <- factor(all_month$Genus, levels=c("Agrostis","Betula","Calluna","Fagus","Lotus","Plantago","Potentilla","Prunus","Quercus","Rubus","Rumex","Rosa","Trifolium","Other"))
+
+
+mycolors<-c('#D2F0F1','#DDEA84', '#A3AB71','#f58231',"#f032e6",'#fabed4','#fffac8','#535A24','#C2DDC9','#aaffc3','#FEE7F8','#B18BA8','#a9a9a9','black')
+            
+#Plotting Exmoor
+stacked_august_both<-ggplot(all_month, aes(fill=Genus, y=freq, x=factor(source))) +
+  guides(fill=guide_legend(ncol=1)) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_manual(values = mycolors) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),axis.text.x = element_text(angle = 75, vjust=0.5,hjust = 0.5,size=24),axis.text.y = element_text(size=24), axis.title.y = element_text(size=24),legend.text = element_text(colour="black", size = 24, face = "italic"), legend.title = element_text(size=24)) +
+  xlab("Source") +
+  ylab("Proportion of reads")
+
+stacked_august_both
+
+ggarrange()
+
+
+#Functionality
+
+
+#Check if species is in the 30 most abundant - if not, change species to "Other"
+for (i in 1:nrow(df_gal_30)) {
+  x<-as.character(df_gal_30$genus[i])
+  vec<-grepl(as.character(x), high_30_gal, fixed=TRUE)
+  if (sum(vec)==0) {df_gal_30$genus[i]="Other"     }
+}
+
+
+#Set to factor
+df_gal_30$genus <- factor(df_gal_30$genus, levels=c(sort(high_30_gal),"Other"))
+
+
+#Rename genus column to Genus
+df_gal_30<-df_gal_30 %>%
+  dplyr::rename(Genus=genus)
+
+#Change order of sampling time
+df_gal_30<-df_gal_30 %>%
+  dplyr::mutate(sample=factor(sample, levels=c(  "JAN1","JAN2","JAN3","JAN4","JAN5","JAN6","JAN7","JAN8","JAN9","JAN10","JAN11","JAN12","JAN13","JAN14","JAN15","JAN16","JAN17","JAN18","JAN19","JAN20","FEB1","FEB2","FEB3","FEB4","FEB5","FEB6","FEB7","FEB8","FEB9","FEB10","FEB11","FEB12","FEB13","FEB14","FEB15","FEB16","FEB17","FEB18","FEB19","FEB20","MAR1","MAR2","MAR3","MAR4","MAR5","MAR6","MAR7","MAR8","MAR9","MAR10","MAR11","MAR12","MAR13","MAR14","MAR15","MAR16","MAR17","MAR18","MAR19","MAR20","APR1","APR2","APR3","APR4","APR5","APR6","APR7","APR8","APR9","APR10","APR11","APR12","APR13","APR14","APR15","APR16","APR17","APR18","APR19","APR20","MAY1","MAY2","MAY3","MAY4","MAY5","MAY6","MAY7","MAY8","MAY9","MAY10","MAY11","MAY12","MAY13","MAY14","MAY15","MAY16","MAY17","MAY18","MAY19","MAY20","JUN1","JUN2","JUN3","JUN4","JUN5","JUN6","JUN7","JUN8","JUN9","JUN10","JUN11","JUN12","JUN13","JUN14","JUN15","JUN16","JUN17","JUN18","JUN19","JUN20","JUL1","JUL2","JUL3","JUL4","JUL5","JUL6","JUL7","JUL8","JUL9","JUL10","JUL11","JUL12","JUL13","JUL14","JUL15","JUL16","JUL17","JUL18","JUL19","JUL20","AUG1","AUG2","AUG3","AUG4","AUG5","AUG6","AUG7","AUG8","AUG9","AUG10","AUG11","AUG12","AUG13","AUG14","AUG15","AUG16","AUG17","AUG18","AUG19","AUG20","SEP1","SEP2","SEP3","SEP4","SEP5","SEP6","SEP7","SEP8","SEP9","SEP10","SEP11","SEP12","SEP13","SEP14","SEP15","SEP16","SEP17","SEP18","SEP19","SEP20","OCT1","OCT2","OCT3","OCT4","OCT5","OCT6","OCT7","OCT8","OCT9","OCT10","OCT11","OCT12","OCT13","OCT14","OCT15","OCT16","OCT17","OCT18","OCT19","OCT20","NOV1","NOV2","NOV3","NOV4","NOV5","NOV6","NOV7","NOV8","NOV9","NOV10","NOV11","NOV12","NOV13","NOV14","NOV15","NOV16","NOV17","NOV18","NOV19","NOV20","DEC1","DEC2","DEC3","DEC4","DEC5","DEC6","DEC7","DEC8","DEC9","DEC10","DEC11","DEC12","DEC13","DEC14","DEC15","DEC16","DEC17","DEC18","DEC19","DEC20"
+)))
+
+
+
+#Sum all "other" reads
+df_gal_30_2<-aggregate(.~sample+Genus, data=df_gal_30, FUN=sum)
+df_gal_30<-df_gal_30_2[order(df_gal_30_2$sample),]
+#Now totalreads are not valid for "Others" - true value assigned
+df_gal_30$totalreads[which(df_gal_30$Genus=="Other")]<-750535
+#Delete source and month columns
+df_gal_30<-df_gal_30[,-c(6,7)]
+#Add month
+month_vec<-c()
+
+for (i in 1:nrow(df_gal_30)) {
+  sample<-as.character(df_gal_30$sample[i])
+  idx<-which(row.names(samples.data)==sample)
+  month_vec<-append(month_vec, as.character(samples.data$month[idx]))
+}
+
+month<-as.factor(month_vec)
+
+df_gal_30<-cbind(df_gal_30, month)
+
+
+# For exmoor
+
+#Check if genus is in the 20 most abundant - if not, change genus to "Other"
+for (i in 1:nrow(df_exm_30)) {
+  x<-as.character(df_exm_30$genus[i])
+  vec<-grepl(as.character(x), high_30_exm, fixed=TRUE)
+  if (sum(vec)==0) {df_exm_30$genus[i]="Other"     }
+}
+
+
+#Set to factor
+df_exm_30$genus <- factor(df_exm_30$genus, levels=c(sort(high_30_exm),"Other"))
+
+
+
+#Rename genus column to Genus
+df_exm_30<-df_exm_30 %>%
+  dplyr::rename(Genus=genus)
+
+#Change order of sampling time
+df_exm_30<-df_exm_30 %>%
+  dplyr::mutate(sample=factor(sample, levels=c(  "JAN1","JAN2","JAN3","JAN4","JAN5","JAN6","JAN7","JAN8","JAN9","JAN10","JAN11","JAN12","JAN13","JAN14","JAN15","JAN16","JAN17","JAN18","JAN19","JAN20","FEB1","FEB2","FEB3","FEB4","FEB5","FEB6","FEB7","FEB8","FEB9","FEB10","FEB11","FEB12","FEB13","FEB14","FEB15","FEB16","FEB17","FEB18","FEB19","FEB20","MAR1","MAR2","MAR3","MAR4","MAR5","MAR6","MAR7","MAR8","MAR9","MAR10","MAR11","MAR12","MAR13","MAR14","MAR15","MAR16","MAR17","MAR18","MAR19","MAR20","APR1","APR2","APR3","APR4","APR5","APR6","APR7","APR8","APR9","APR10","APR11","APR12","APR13","APR14","APR15","APR16","APR17","APR18","APR19","APR20","MAY1","MAY2","MAY3","MAY4","MAY5","MAY6","MAY7","MAY8","MAY9","MAY10","MAY11","MAY12","MAY13","MAY14","MAY15","MAY16","MAY17","MAY18","MAY19","MAY20","JUN1","JUN2","JUN3","JUN4","JUN5","JUN6","JUN7","JUN8","JUN9","JUN10","JUN11","JUN12","JUN13","JUN14","JUN15","JUN16","JUN17","JUN18","JUN19","JUN20","JUL1","JUL2","JUL3","JUL4","JUL5","JUL6","JUL7","JUL8","JUL9","JUL10","JUL11","JUL12","JUL13","JUL14","JUL15","JUL16","JUL17","JUL18","JUL19","JUL20","AUG1","AUG2","AUG3","AUG4","AUG5","AUG6","AUG7","AUG8","AUG9","AUG10","AUG11","AUG12","AUG13","AUG14","AUG15","AUG16","AUG17","AUG18","AUG19","AUG20","SEP1","SEP2","SEP3","SEP4","SEP5","SEP6","SEP7","SEP8","SEP9","SEP10","SEP11","SEP12","SEP13","SEP14","SEP15","SEP16","SEP17","SEP18","SEP19","SEP20","OCT1","OCT2","OCT3","OCT4","OCT5","OCT6","OCT7","OCT8","OCT9","OCT10","OCT11","OCT12","OCT13","OCT14","OCT15","OCT16","OCT17","OCT18","OCT19","OCT20","NOV1","NOV2","NOV3","NOV4","NOV5","NOV6","NOV7","NOV8","NOV9","NOV10","NOV11","NOV12","NOV13","NOV14","NOV15","NOV16","NOV17","NOV18","NOV19","NOV20","DEC1","DEC2","DEC3","DEC4","DEC5","DEC6","DEC7","DEC8","DEC9","DEC10","DEC11","DEC12","DEC13","DEC14","DEC15","DEC16","DEC17","DEC18","DEC19","DEC20"
+)))
+
+#Sum all "other" reads
+df_exm_30_2<-aggregate(.~sample+Genus, data=df_exm_30, FUN=sum)
+df_exm_30<-df_exm_30_2[order(df_exm_30_2$sample),]
+#Now totalreads are not valid for "Others" - true value assigned
+df_exm_30$totalreads[which(df_exm_30$Genus=="Other")]<-750535
+#Delete source and month columns
+df_exm_30<-df_exm_30[,-c(6,7)]
+#Add month
+month_vec<-c()
+
+for (i in 1:nrow(df_exm_30)) {
+  sample<-as.character(df_exm_30$sample[i])
+  idx<-which(row.names(samples.data)==sample)
+  month_vec<-append(month_vec, as.character(samples.data$month[idx]))
+}
+
+month<-as.factor(month_vec)
+
+df_exm_30<-cbind(df_exm_30, month)
+
+
+
+#Sort by sample name
+gal_func<-df_gal_30[order(df_gal_30$sample),]
+exm_func<-df_exm_30[order(df_exm_30$sample),]
+
+#Remove columns with wrong calculations
+gal_func<-gal_func[,-c(4:5)]
+exm_func<-exm_func[,-c(4:5)]
+
+#Calculate totalreads and frequency again
+#Galloway
+totalreads<-c()
+
+#Add value for total reads in each sample to the sample_count vector
+for (sample in unique(gal_func$sample)) {
+  x1<-which(gal_func$sample==sample)
+  x2<-sum(gal_func$count[x1[1]:x1[length(x1)]])
+  totalreads<-append(totalreads, rep(x2, each=length(x1)))
+}
+
+#Add totalreads to df2
+gal_func<-cbind(gal_func,totalreads)
+
+
+#Calculate frequency of each species in the sample
+freq<-c()
+
+for (i in 1:nrow(gal_func)) {
+  x<-gal_func$count[i]/gal_func$totalreads[i]
+  freq<-append(freq,x)
+  
+  
+}
+
+
+#Add to df2
+gal_func<-cbind(gal_func, freq)
+
+#Calculate totalreads and frequency again
+#Exmoor
+totalreads<-c()
+
+#Add value for total reads in each sample to the sample_count vector
+for (sample in unique(exm_func$sample)) {
+  x1<-which(exm_func$sample==sample)
+  x2<-sum(exm_func$count[x1[1]:x1[length(x1)]])
+  totalreads<-append(totalreads, rep(x2, each=length(x1)))
+}
+
+#Add totalreads
+exm_func<-cbind(exm_func,totalreads)
+
+
+#Calculate frequency of each species in the sample
+freq<-c()
+
+for (i in 1:nrow(exm_func)) {
+  x<-exm_func$count[i]/exm_func$totalreads[i]
+  freq<-append(freq,x)
+  
+  
+}
+
+#Add to exm_20
+exm_func<-cbind(exm_func, freq)
+
+
+#Sort by Genus
+
+gal_func<-gal_func[order(gal_func$Genus),]
+exm_func<-exm_func[order(exm_func$Genus),]
+
+
+
+n<-count(gal_func, Genus)
+
+type<-rep(c("Forbs","Graminoids","Forbs","Trees",
+            "Shrubs","Forbs","Graminoids","Forbs",
+            "Forbs","Shrubs","Forbs","Forbs",
+            "Forbs","Forbs","Forbs","Forbs",
+            "Trees","Forbs","Forbs","Trees",
+            "Trees","Forbs","Shrubs","Shrubs",
+            "Forbs","Trees","Trees","Forbs",
+            "Shrubs","Forbs","Unknown"), times=c(n$n))
+
+
+gal_func<-cbind(gal_func, type)
+
+saveRDS(gal_func, file="ITS/Local_analysis/output/RDS_files/gal_func")
+
+n<-count(exm_func, Genus)
+
+type<-rep(c("Graminoids","Trees","Graminoids","Trees","Shrubs",
+            "Graminoids","Forbs","Shrubs","Forbs","Trees",
+            "Trees","Graminoids","Forbs","Forbs","Forbs",
+            "Graminoids","Forbs","Forbs","Forbs","Graminoids",
+            "Forbs","Trees","Trees","Forbs","Shrubs",
+            "Shrubs","Forbs","Trees","Forbs","Shrubs",
+            "Unknown"), times=c(n$n))
+
+exm_func<-cbind(exm_func, type)
+
+saveRDS(exm_func, file="ITS/Local_analysis/output/RDS_files/exm_func")
+
+mycolors<-c("#689827","#98DF86","#B48d4F","#795620","black")
+
+#Plotting Galloway
+stacked_gal_func<-ggplot(gal_func, aes(fill=type, y=freq, x=sample)) +
+  guides(fill=guide_legend(ncol=1)) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_manual(values = mycolors) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),axis.text.x = element_text(angle = 90, vjust=0.5,hjust = 0.5)) +
+  xlab("Sample") +
+  ylab("Proportion of reads")
+
+
+#Plotting Exmoor
+stacked_exm_func<-ggplot(exm_func, aes(fill=type, y=freq, x=sample)) +
+  guides(fill=guide_legend(ncol=1)) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_manual(values = mycolors) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),axis.text.x = element_text(angle = 90, vjust=0.5,hjust = 0.5)) +
+  xlab("Sample") +
+  ylab("Proportion of reads")
+
+
+
+ggarrange(stacked_gal_func, stacked_exm_func, labels = c("A", "B"), ncol = 1, nrow = 2)
+ggsave("ITS/Local_analysis/output/plots/StackedBothGeneraFunctionality.pdf", width=14, height=8)
+
+StackedBothFunctionality<-ggarrange(stacked_gal_func, stacked_exm_func, labels = c("A", "B"), ncol = 1, nrow = 2)
+
+saveRDS(StackedBothFunctionality, file="ITS/Local_analysis/output/RDS_files/StackedBothGeneraFunctionality")
+
+
+
+#Then aggregated by month
+
+#Aggregate samples by month
+
+gal_month<-df_gal_30[,c(-1,-4,-5)]
+exm_month<-df_exm_30[,c(-1,-4,-5)]
+
+gal_month<-aggregate(. ~month+Genus, data=gal_month, FUN=mean)
+exm_month<-aggregate(. ~month+Genus, data=exm_month, FUN=mean)
+
+colnames(gal_month)[1]="Month"
+colnames(exm_month)[1]="Month"
+
+gal_month_20<-gal_month
+exm_month_20<-exm_month
+
+
+#Calculate total reads in each month again
+
+jan<-c()
+feb<-c()
+mar<-c()
+apr<-c()
+may<-c()
+jun<-c()
+jul<-c()
+aug<-c()
+sep<-c()
+oct<-c()
+nov<-c()
+dec<-c()
+for (i in 1:nrow(gal_month_20)) {
+  if (gal_month_20$Month[i]=="January") {jan<-append(jan, gal_month_20$count[i])}
+  if (gal_month_20$Month[i]=="February") {feb<-append(feb, gal_month_20$count[i])}
+  if (gal_month_20$Month[i]=="March") {mar<-append(mar, gal_month_20$count[i])}
+  if (gal_month_20$Month[i]=="April") {apr<-append(apr, gal_month_20$count[i])}
+  if (gal_month_20$Month[i]=="May") {may<-append(may, gal_month_20$count[i])}
+  if (gal_month_20$Month[i]=="June") {jun<-append(jun, gal_month_20$count[i])}
+  if (gal_month_20$Month[i]=="July") {jul<-append(jul, gal_month_20$count[i])}
+  if (gal_month_20$Month[i]=="August") {aug<-append(aug, gal_month_20$count[i])}
+  if (gal_month_20$Month[i]=="September") {sep<-append(sep, gal_month_20$count[i])}
+  if (gal_month_20$Month[i]=="October") {oct<-append(oct, gal_month_20$count[i])}
+  if (gal_month_20$Month[i]=="November") {nov<-append(nov, gal_month_20$count[i])}
+  if (gal_month_20$Month[i]=="December") {dec<-append(dec, gal_month_20$count[i])}
+}
+total_each_gal<-sapply(list(jan,feb,mar,apr,may,jun,jul,aug,sep,oct,nov,dec), FUN=sum)
+
+totalreads<-c(rep(1, each=nrow(gal_month_20)))
+
+gal_month<-cbind(gal_month_20, totalreads)
+
+for (i in 1:nrow(gal_month)) {
+  if (gal_month$Month[i]=="January") {gal_month$totalreads[i]=total_each_gal[1]}
+  if (gal_month$Month[i]=="February") {gal_month$totalreads[i]=total_each_gal[2]}
+  if (gal_month$Month[i]=="March") {gal_month$totalreads[i]=total_each_gal[3]}
+  if (gal_month$Month[i]=="April") {gal_month$totalreads[i]=total_each_gal[4]}
+  if (gal_month$Month[i]=="May") {gal_month$totalreads[i]=total_each_gal[5]}
+  if (gal_month$Month[i]=="June") {gal_month$totalreads[i]=total_each_gal[6]}
+  if (gal_month$Month[i]=="July") {gal_month$totalreads[i]=total_each_gal[7]}
+  if (gal_month$Month[i]=="August") {gal_month$totalreads[i]=total_each_gal[8]}
+  if (gal_month$Month[i]=="September") {gal_month$totalreads[i]=total_each_gal[9]}
+  if (gal_month$Month[i]=="October") {gal_month$totalreads[i]=total_each_gal[10]}
+  if (gal_month$Month[i]=="November") {gal_month$totalreads[i]=total_each_gal[11]}
+  if (gal_month$Month[i]=="December") {gal_month$totalreads[i]=total_each_gal[12]}
+  }
+
+freq<-c()
+
+for (i in 1:nrow(gal_month)) {
+  x<-gal_month$count[i]/gal_month$totalreads[i]
+  freq<-append(freq,x)
+}
+
+gal_month<-cbind(gal_month, freq)
+
+#And for exmoor ponies
+
+
+jan<-c()
+feb<-c()
+mar<-c()
+apr<-c()
+may<-c()
+jun<-c()
+jul<-c()
+aug<-c()
+sep<-c()
+oct<-c()
+nov<-c()
+dec<-c()
+
+for (i in 1:nrow(exm_month_20)) {
+  if (exm_month_20$Month[i]=="January") {jan<-append(jan, exm_month_20$count[i])}
+  if (exm_month_20$Month[i]=="February") {feb<-append(feb, exm_month_20$count[i])}
+  if (exm_month_20$Month[i]=="March") {mar<-append(mar, exm_month_20$count[i])}
+  if (exm_month_20$Month[i]=="April") {apr<-append(apr, exm_month_20$count[i])}
+  if (exm_month_20$Month[i]=="May") {may<-append(may, exm_month_20$count[i])}
+  if (exm_month_20$Month[i]=="June") {jun<-append(jun, exm_month_20$count[i])}
+  if (exm_month_20$Month[i]=="July") {jul<-append(jul, exm_month_20$count[i])}
+  if (exm_month_20$Month[i]=="August") {aug<-append(aug, exm_month_20$count[i])}
+  if (exm_month_20$Month[i]=="September") {sep<-append(sep, exm_month_20$count[i])}
+  if (exm_month_20$Month[i]=="October") {oct<-append(oct, exm_month_20$count[i])}
+  if (exm_month_20$Month[i]=="November") {nov<-append(nov, exm_month_20$count[i])}
+  if (exm_month_20$Month[i]=="December") {dec<-append(dec, exm_month_20$count[i])}
+}
+total_each_exm<-sapply(list(jan,feb,mar,apr,may,jun,jul,aug,sep,oct,nov,dec), FUN=sum)
+
+totalreads<-c(rep(1, each=nrow(exm_month_20)))
+
+exm_month<-cbind(exm_month_20, totalreads)
+
+for (i in 1:nrow(exm_month)) {
+  if (exm_month$Month[i]=="January") {exm_month$totalreads[i]=total_each_exm[1]}
+  if (exm_month$Month[i]=="February") {exm_month$totalreads[i]=total_each_exm[2]}
+  if (exm_month$Month[i]=="March") {exm_month$totalreads[i]=total_each_exm[3]}
+  if (exm_month$Month[i]=="April") {exm_month$totalreads[i]=total_each_exm[4]}
+  if (exm_month$Month[i]=="May") {exm_month$totalreads[i]=total_each_exm[5]}
+  if (exm_month$Month[i]=="June") {exm_month$totalreads[i]=total_each_exm[6]}
+  if (exm_month$Month[i]=="July") {exm_month$totalreads[i]=total_each_exm[7]}
+  if (exm_month$Month[i]=="August") {exm_month$totalreads[i]=total_each_exm[8]}
+  if (exm_month$Month[i]=="September") {exm_month$totalreads[i]=total_each_exm[9]}
+  if (exm_month$Month[i]=="October") {exm_month$totalreads[i]=total_each_exm[10]}
+  if (exm_month$Month[i]=="November") {exm_month$totalreads[i]=total_each_exm[11]}
+  if (exm_month$Month[i]=="December") {exm_month$totalreads[i]=total_each_exm[12]}
+  }
+
+freq<-c()
+
+for (i in 1:nrow(exm_month)) {
+  x<-exm_month$count[i]/exm_month$totalreads[i]
+  freq<-append(freq,x)
+}
+
+exm_month<-cbind(exm_month, freq)
+
+
+n<-count(gal_month, Genus)
+
+type<-rep(c("Forbs","Graminoids","Forbs","Trees","Shrubs","Forbs","Graminoids","Forbs","Forbs","Shrubs","Forbs","Forbs","Forbs","Forbs","Forbs","Forbs","Trees","Forbs","Forbs","Trees","Trees","Forbs","Shrubs","Shrubs","Forbs","Trees","Trees","Forbs","Shrubs","Forbs","Unknown"), times=c(n$n))
+
+
+gal_month_func<-cbind(gal_month, type)
+
+saveRDS(gal_month_func, file="ITS/Local_analysis/output/RDS_files/gal_month_func")
+
+n<-count(exm_month, Genus)
+
+type<-rep(c("Graminoids","Trees","Graminoids","Trees","Shrubs",
+            "Graminoids","Forbs","Shrubs","Forbs","Trees",
+            "Trees","Graminoids","Forbs","Forbs","Forbs",
+            "Graminoids","Forbs","Forbs","Forbs","Graminoids",
+            "Forbs","Trees","Trees","Forbs","Shrubs",
+            "Shrubs","Forbs","Trees","Forbs","Shrubs",
+            "Unknown"), times=c(n$n))
+
+exm_month_func<-cbind(exm_month, type)
+
+saveRDS(exm_month_func, file="ITS/Local_analysis/output/RDS_files/exm_month_func")
+
+mycolors<-c("#689827","#98DF86","#B48d4F","#795620","black")
+
+#Plotting Galloway
+stacked_gal_months_func<-ggplot(gal_month_func, aes(fill=type, y=freq, x=factor(Month, level=level_order))) +
+  guides(fill=guide_legend(ncol=1)) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_manual(values = mycolors) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),axis.text.x = element_text(angle = 75, vjust=0.5,hjust = 0.5,size=24),axis.text.y = element_text(size=24), axis.title.y = element_text(size=24),legend.text = element_text(colour="black", size = 24), legend.title = element_text(size=24)) +
+  xlab("Month") +
+  ylab("Proportion of reads")
+
+
+#Plotting Exmoor
+stacked_exm_months_func<-ggplot(exm_month_func, aes(fill=type, y=freq, x=factor(Month, level=level_order))) +
+  guides(fill=guide_legend(ncol=1)) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_manual(values = mycolors) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),axis.text.x = element_text(angle = 75, vjust=0.5,hjust = 0.5,size=24),axis.text.y = element_text(size=24), axis.title.y = element_text(size=24),legend.text = element_text(colour="black", size = 24), legend.title = element_text(size=24)) +
+  xlab("Month") +
+  ylab("Proportion of reads")
+
+
+ggarrange(stacked_gal_months_func, stacked_exm_months_func, labels = c("A", "B"), ncol = 1, nrow = 2)
+ggsave("ITS/Local_analysis/output/plots/StackedBothMonthsGeneraFunctionality.pdf", width=14, height=8)
+
+ggarrange(stacked_gal_months_func, stacked_exm_months_func, stacked_gal_months,stacked_exm_months, labels = c("A", "B","C","D"), font.label = list(size=24), ncol = 1, nrow = 4)
+ggsave("ITS/Local_analysis/output/figures/plant_stacked.png", width=20, height=32)
+
+ggarrange(stacked_gal_func, stacked_exm_func, stacked_gal,stacked_exm, labels = c("A", "B","C","D"), ncol = 1, nrow = 4)
+ggsave("ITS/Local_analysis/output/figures/plant_stacked_all_samples.png", width=15, height=20)
+
+StackedBothMonthsFunctionality<-ggarrange(stacked_gal_months_func, stacked_exm_months_func, labels = c("A", "B"), ncol = 1, nrow = 2)
+
+saveRDS(StackedBothMonthsFunctionality, file="ITS/Local_analysis/output/RDS_files/StackedBothMonthsGeneraFunctionality")
+
+
+ggarrange(stacked_gal_months_func, stacked_exm_months_func,stacked_gal_months,stacked_exm_months, labels = c("A", "B","C","D"), ncol = 1, nrow = 4)
+ggsave("ITS/Local_analysis/output/figures/figure5.pdf", width=14, height=16)
+
+ggarrange(stacked_gal,stacked_exm, stacked_gal_func, stacked_exm_func, labels = c("A", "B","C","D"), ncol = 1, nrow = 4)
+ggsave("ITS/Local_analysis/output/figures/figureS2.pdf", width=14, height=16)
+
+
+
+```
+
+
+```{r Find unique species}
+
+
+
+#Loading libraries
+library(tidyverse)
+library(ROBITools)
+library(ROBITaxonomy)
+library(ggpubr)
+library(dplyr)
+library(ggplot2)
+library(ggsci)
+library(RColorBrewer)
+
+#Set level order for plots
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+#Load data
+df_raw <- readRDS("ITS/Local_analysis/output/RDS_files/df_genera_reads")
+
+df_raw<-df_raw[,-c((ncol(df_raw)-6):ncol(df_raw))]
+df_raw<-t(df_raw)
+
+dataset<-readRDS("ITS/Local_analysis/output/RDS_files/dataset_final")
+
+df_raw<-cbind(df_raw,dataset@samples$source)
+
+#Evaluate only genera present in more than 5 samples
+idx_keep<-NA
+
+for (i in 1:ncol(df_raw)) {
+  if (sum(df_raw[,i]>0)>=5) {idx_keep<-append(idx_keep,i)}
+}
+
+idx_keep<-idx_keep[-1]
+
+df_raw<-df_raw[,idx_keep]
+
+df_gal<-df_raw[which(df_raw[,102]==3),]
+
+df_exm<-df_raw[which(df_raw[,102]==2),]
+
+
+
+gal_species<-c()
+exm_species<-c()
+
+for (i in 1:ncol(df_gal)) {
+  if (sum(df_gal[,i]>0)) {gal_species<-append(gal_species,colnames(df_gal)[i])}
+  if (sum(df_exm[,i]>0)) {exm_species<-append(exm_species,colnames(df_exm)[i])}
+}
+
+
+gal_uniq<-setdiff(gal_species, exm_species)
+exm_uniq<-setdiff(exm_species,gal_species)
+
+#Exclude unidentified genera
+gal_uniq<-gal_uniq[!grepl("genus",gal_uniq,fixed=TRUE)]
+gal_uniq<-gal_uniq[!grepl("seq",gal_uniq,fixed=TRUE)]
+exm_uniq<-exm_uniq[!grepl("genus",exm_uniq,fixed=TRUE)]
+exm_uniq<-exm_uniq[!grepl("seq",exm_uniq,fixed=TRUE)]
+
+unique<-data.frame("Exmoor"=exm_uniq,"Galloway"=c(gal_uniq,rep(NA,each=length(exm_uniq)-length(gal_uniq))))
+
+#Export table
+
+write_delim(unique,file="ITS/Local_analysis/output/tables/unique_plant_genera.txt", delim = ";")
+
+```
+
+
+

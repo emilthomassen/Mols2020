@@ -1,0 +1,21 @@
+	Level	Group	Count
+1	total	total	215741501
+2	total	with_id	213602680
+3	kingdoms	Fungi	16290274
+4	kingdoms	Metazoa	20601
+5	kingdoms	Viridiplantae	197277633
+6	kingdoms	Other kingdoms	14172
+7	plyla	Chlorophyta	450508
+8	plyla	Streptophyta	196827125
+9	classes	Magnoliopsida	196777739
+10	classes	Other classes	49386
+11	orders	Rosales	88251460
+12	orders	Fagales	48833205
+13	orders	Poales	7267944
+14	orders	Asterales	2887995
+15	orders	Fabales	10539468
+16	orders	Ericales	7044863
+17	orders	Malvales	1695593
+18	orders	Lamiales	10857263
+19	orders	Myrtales	4554953
+20	orders	Other orders	14844995

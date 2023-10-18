@@ -1,0 +1,157 @@
+---
+title: "Compare with new taxonomy"
+author: "Emil Ellegaard Thomassen"
+date: "`r Sys.Date()"
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+
+This script compares new taxonomy after bug fix in august 2022 with the old, manually corrected one.
+
+# Load data files
+
+```{r Load files}
+
+rm(list=ls())
+gc()
+setwd(here::here())
+
+old <- read.delim("COI/MetaBarFlow/output/classified_corrected_01_03_22.txt", stringsAsFactors = FALSE)
+
+new <- read.delim("COI/MetaBarFlow/output/classified_new_august_2022.txt", stringsAsFactors = FALSE)
+```
+
+# Merge by qseqid
+
+```{r Merge}
+
+colnames(old)[26]<-"score.id.old"
+colnames(new)[26]<-"score.id.new"
+
+merged<-merge(new[,c(1:7,15:26)], old[,c(2,9:15,26:29)],by="qseqid", all.x=TRUE)
+
+#Rearranging columns
+merged<-cbind(merged[,c(1:7)],merged[,c(20:26)],merged[,c(8:19)],merged[,c(27:30)])
+
+```
+
+# Add column to check for differences
+
+```{r Check differences}
+
+merged$score.id.new[is.na(merged$score.id.new)]<-"noval"
+merged$score.id.old[is.na(merged$score.id.old)]<-"noval"
+merged$final.id[is.na(merged$final.id)]<-"noval"
+
+diff<-NULL
+
+for (i in 1:nrow(merged)) {
+  if (merged$score.id.new[i]==merged$score.id.old[i]) {diff<-append(diff,0)}
+  if (merged$score.id.new[i]!=merged$score.id.old[i]) {diff<-append(diff,1)}
+}
+
+
+merged$"diff"<-diff
+
+sum(diff)
+
+# 4169 seqs has now new id
+
+# Check if these have already been manually corrected
+
+diff.cor<-NULL
+
+for (i in 1:nrow(merged)) {
+  if (merged$final.id[i]==merged$score.id.new[i]) {diff.cor<-append(diff.cor,0)}
+  if (merged$final.id[i]!=merged$score.id.new[i]) {diff.cor<-append(diff.cor,1)}
+}
+
+merged$"diff.cor"<-diff.cor
+
+diff.both<-NULL
+
+for (i in 1:nrow(merged)) {
+  if (merged$diff[i]+merged$diff.cor[i]==2) {diff.both<-append(diff.both,1)}
+  if (merged$diff[i]+merged$diff.cor[i]==1) {diff.both<-append(diff.both,0)}
+  if (merged$diff[i]+merged$diff.cor[i]==0) {diff.both<-append(diff.both,0)}
+}
+
+
+merged$"diff.both"<-diff.both
+
+sum(diff.both)
+
+#Mark if new id not included before
+
+new<-NULL
+
+for (i in 1:nrow(merged)) {
+  if (is.na(merged$type[i])==TRUE) {new<-append(new,1)}
+  if (is.na(merged$type[i])==FALSE) {new<-append(new,0)}
+}
+
+merged$"new"<-new
+
+```
+
+# Write to new file
+
+```{r Write new file}
+
+write.table(merged, file="COI/MetaBarFlow/output/classified_checked_with_new_taxonomy.txt",quote=FALSE, sep='\t', col.names = TRUE,row.names=FALSE)
+
+
+
+```
+
+# Check taxids not found
+
+```{r Load summary file}
+
+sum<-read.delim("COI/MetaBarFlow/output/summary_new_august_2022.txt", stringsAsFactors = FALSE)
+
+taxids<-read.delim("COI/MetaBarFlow/output/taxids_not_found_list.txt", stringsAsFactors = FALSE)
+
+ssciname<-NULL
+
+for (i in 1:nrow(taxids)) {
+  names<-sum$ssciname[which(sum$staxid==taxids[i,1])]
+  ssciname<-append(ssciname,names[1])
+}
+
+# Check which seqs are implicated
+
+seqs<-data.frame("ssciname"=NULL, "seq"=NULL,"taxid"=NULL)
+
+for (i in 1:nrow(sum)) {
+  if (sum$staxid[i] %in% taxids[,1]==TRUE & sum$include[i]==1) {seqs<-rbind(seqs,c(sum$ssciname[i],sum$qseqid[i],sum$staxid[i]))}
+  
+}
+
+colnames(seqs)<-c("ssciname","seq","taxid")
+
+seqid<-NULL
+
+for (i in 1:nrow(seqs)) {
+  id<-strsplit(seqs$seq[i], "q")
+  seqid<-append(seqid, as.numeric(id[[1]][2]))
+  
+}
+
+seqs<-cbind(seqs,seqid)  
+
+seqs<- seqs[order(seqid),]
+
+# Only those seqs with relevant ids (for this study, not plants or fungi)
+
+imp<-c("Bradybaena fruticum","Xestia cNnigrum","Pyronia bathseba")
+
+seqs_check<-seqs[seqs$ssciname==imp[1]|seqs$ssciname==imp[2]|seqs$ssciname==imp[3],]
+
+write.table(seqs_check, file="COI/MetaBarFlow/output/check_no_taxid_match.txt",quote=FALSE, sep='\t', col.names = TRUE,row.names=FALSE)
+
+include<-sum[which(sum$qseqid=="seq11238" & sum$include==1),]
+
+```
+

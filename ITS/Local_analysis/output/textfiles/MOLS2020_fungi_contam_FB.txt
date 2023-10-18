@@ -1,0 +1,5 @@
+	count	final.otu	max.sample	max.FB
+seq1388	19176	Alternaria infectoria	1820	283
+seq6690	1498	Ascochyta rabiei	503	2
+seq47193	102	Buckleyzyma aurantiaca	58	5
+seq79	1165338	Podospora sp. SC4L3-1	94317	18

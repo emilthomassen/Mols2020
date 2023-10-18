@@ -1,0 +1,78 @@
+---
+title: "MetaBarFlow - ngsLCA comparison"
+author: "Emil Ellegaard Thomassen"
+date: "`r Sys.Date()"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+# Setup
+
+First, R environment is set up, and packages are loaded:
+
+```{r Setup and load packages, warning=FALSE, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.height = 5.5,
+	message = FALSE,
+	warning = FALSE,
+	autodep = TRUE,
+	cache = TRUE,
+	cache.lazy = FALSE,
+	tidy = TRUE,
+	tidy.opts = list(width.cutoff = 80)
+)
+rm(list=ls())
+gc()
+setwd(here::here())
+
+
+
+# Installing packages as needed
+install.load.package <- function(x) {
+  if (!require(x, character.only = TRUE))
+    install.packages(x, repos='http://cran.us.r-project.org', dependencies = TRUE)
+  require(x, character.only = TRUE)
+}
+package_vec <- c("kableExtra", "tidyverse", "ggplot2", "knitr", "printr", "vegan", "ROBITools", "ROBITaxonomy", "dplyr", "tidyr","gllvm","ggalt","ggpubr","formatR")
+sapply(package_vec, install.load.package)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, cache = TRUE, cache.lazy=FALSE, tidy.opts=list(width.cutoff=80),tidy=TRUE, fig.height=5.5)
+options(digits=4, width = 90)
+
+```
+
+# Load data
+
+```{r Load data}
+
+ngsLCA.95<-read.csv2("COI/ngsLCA_comparison/ngsLCA_results/Emil.ss095to1.lca.csv", header=FALSE)
+
+colnames(ngsLCA.95)<-c("qseqid","taxid","ngsLCA.95.name")
+
+ngsLCA.95$"id"<-NULL
+
+for (i in 1:nrow(ngsLCA.95)) {ngsLCA.95$id[i]<-as.numeric(strsplit(ngsLCA.95$qseqid[i], "q")[[1]][2])
+  }
+  
+  
+
+meta.tax<-read.delim("COI/MetaBarFlow/output/classified_corrected_02_09_22.txt")
+
+meta.tax<-meta.tax[order(meta.tax$id),]
+
+comp.tax<-merge(meta.tax,ngsLCA.95, by="qseqid", all.x=TRUE, all.y = TRUE )
+
+
+for (i in 1:nrow(comp.tax)) {if (is.na(comp.tax$id.x[i])==TRUE) {comp.tax$id.x[i]<-comp.tax$id.y[i]}}
+
+comp.tax<-comp.tax[order(comp.tax$id.x),]
+
+comp.tax<-comp.tax[,c(1,2,6,9:15,27,29,38)]
+
+write.table(comp.tax,"COI/ngsLCA_comparison/ids_compared.txt")
+
+```
+

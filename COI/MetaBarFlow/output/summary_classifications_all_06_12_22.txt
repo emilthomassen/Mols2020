@@ -1,0 +1,2 @@
+"species_level"	"genus_level"	"family_level"	"order_level"	"class_level"	"phylum_level"	"kingdom_level"	"no_classification"
+"1"	9263	13537	265	1159	829	34	0	8

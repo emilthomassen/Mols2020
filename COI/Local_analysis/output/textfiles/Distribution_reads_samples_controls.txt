@@ -1,0 +1,2 @@
+tot_reads	reads_FB	reads_CNE	reads_NTC	tot_reads_samples
+91707972	4898	2451	57	91700566

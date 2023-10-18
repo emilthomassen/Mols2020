@@ -1,0 +1,37 @@
+Exmoor;Galloway
+Alternaria rosae;Apiotrichum lignicola
+Apodus deciduus;Ascobolus denudatus
+Arthrographis kalrae;Ascomycota sp. 2 TC2-053
+Ascobolus sp.;Cenococcum geophilum
+Ascomycota sp. UNEX FECRGA 2012E648;Coniochaeta sp. NG_p46
+Coprinopsis cinerea;Coniothyrium crepinianum
+Curvularia protuberata;Coprinellus radicellus
+Epicoccum nigrum;Cyberlindnera misumaiensis
+Kochiomyces dichotomus;Hydnotrya tulasnei
+Mucor fragilis;Lachnellula fuscosanguinea
+Mucor hiemalis;Lactarius quietus
+Mucor odoratus;Neoascochyta tardicrescens
+Mucor sp. BESC196c;Panaeolus desertorum
+Mucorales sp. FL-2015;Paraphaeosphaeria michotii
+Panaeolus papilionaceus;Paraphoma sp.
+Panaeolus retirugis;Penicillium canescens
+Panaeolus rickenii;Phaeosphaeria poagena
+Paraphaeosphaeria sporulosa;Pichia terricola
+Penicillium polonicum;Pleosporales sp.
+Pezizomycetes sp.;Pleosporales sp. STAF226
+Pichia fermentans;Pleosporales sp. TC2-049
+Pilobolus heterosporus;Podila humilis
+Pilobolus longipes;Pseudoconiothyrium broussonetiae
+Podospora conica;Russula ochroleuca
+Podospora curvicolla;NA
+Podospora vesticola;NA
+Preussia minima;NA
+Preussia pilosella;NA
+Pseudaleuria fibrillosa;NA
+Psilocybe pelliculosa;NA
+Saccharomyces paradoxus;NA
+Saccharomyces sp.;NA
+Schizothecium miniglutinans;NA
+Sordaria fimicola;NA
+Sordariales sp. 7S-Ap3-4-1;NA
+Stemphylium globuliferum;NA

@@ -1,0 +1,223 @@
+"Genus" "Count"
+"7" "Anemone" 0
+"30" "Caryophyllaceae genus 3" 0
+"40" "Crataegus" 0
+"54" "Empetrum" 0
+"64" "Fragaria" 0
+"77" "Hylotelephium" 0
+"86" "Lonicera" 0
+"91" "Magnoliopsida genus seq12720" 0
+"93" "Magnoliopsida genus seq12862" 0
+"97" "Magnoliopsida genus seq13058" 0
+"98" "Magnoliopsida genus seq13101" 0
+"99" "Magnoliopsida genus seq13105" 0
+"100" "Magnoliopsida genus seq13120" 0
+"101" "Magnoliopsida genus seq13159" 0
+"102" "Magnoliopsida genus seq14301" 0
+"103" "Magnoliopsida genus seq14419" 0
+"105" "Magnoliopsida genus seq2144" 0
+"106" "Magnoliopsida genus seq2274" 0
+"139" "Rhinanthus" 0
+"148" "Salicaceae genus seq17493" 0
+"149" "Salicaceae genus seq27786" 0
+"150" "Salicaceae genus seq28958" 0
+"151" "Salicaceae genus seq30493" 0
+"152" "Salicaceae genus seq31838" 0
+"154" "Sambucus" 0
+"157" "seq10826" 0
+"159" "seq11002" 0
+"171" "seq12964" 0
+"185" "seq21238" 0
+"186" "seq2138" 0
+"187" "seq2246" 0
+"188" "seq2681" 0
+"189" "seq2714" 0
+"195" "seq29423" 0
+"203" "seq8001" 0
+"204" "seq8630" 0
+"208" "Sonchus" 0
+"217" "Turritis" 0
+"14" "Asteraceae genus 2" 65
+"42" "Cupressaceae genus seq24446" 89
+"118" "Odontites" 89
+"170" "seq12816" 101
+"177" "seq13783" 107
+"104" "Magnoliopsida genus seq14659" 109
+"179" "seq14401" 112
+"156" "seq10688" 116
+"44" "Cupressaceae genus seq28504" 118
+"205" "seq9357" 120
+"168" "seq12054" 122
+"160" "seq11049" 132
+"158" "seq10886" 139
+"43" "Cupressaceae genus seq26826" 163
+"173" "seq13071" 169
+"113" "Molinia" 192
+"193" "seq2860" 192
+"180" "seq14435" 200
+"169" "seq12713" 205
+"96" "Magnoliopsida genus seq12944" 215
+"166" "seq11783" 217
+"165" "seq11757" 225
+"12" "Artemisia" 229
+"92" "Magnoliopsida genus seq12855" 229
+"95" "Magnoliopsida genus seq12934" 290
+"175" "seq13344" 293
+"174" "seq13151" 335
+"94" "Magnoliopsida genus seq12897" 350
+"200" "seq3845" 354
+"190" "seq2717" 359
+"199" "seq3743" 364
+"192" "seq2810" 409
+"194" "seq2893" 409
+"68" "Genista" 446
+"117" "Nasturtium" 457
+"126" "Pinus" 483
+"108" "Medicago" 486
+"182" "seq1685" 489
+"120" "Ornithopus" 498
+"144" "Rosaceae genus seq3796" 552
+"181" "seq1664" 579
+"143" "Rosaceae genus seq3608" 604
+"17" "Avenula" 640
+"73" "Helictochloa" 668
+"71" "Glechoma" 670
+"114" "Myosotis" 767
+"178" "seq1393" 833
+"147" "Sagina" 859
+"172" "seq13059" 881
+"196" "seq3124" 884
+"21" "Brachythecium" 885
+"202" "seq4674" 898
+"201" "seq4578" 951
+"124" "Picea" 979
+"58" "Erodium" 997
+"176" "seq1367" 1006
+"34" "Chelidonium" 1072
+"184" "seq1838" 1147
+"191" "seq2729" 1149
+"198" "seq3330" 1172
+"76" "Hottonia" 1204
+"197" "seq3286" 1248
+"213" "Teesdalia" 1341
+"183" "seq1709" 1372
+"84" "Linaria" 1450
+"51" "Dianthus" 1498
+"62" "Ficaria" 1502
+"218" "Urtica" 1585
+"216" "Triglochin" 1735
+"1" "Acer" 1782
+"162" "seq1128" 1844
+"46" "Cyperaceae genus 2" 1850
+"222" "Viola" 1931
+"23" "Callianthemum" 1991
+"206" "Sisymbrium" 2042
+"167" "seq1179" 2067
+"132" "Populus" 2083
+"89" "Lysimachia" 2114
+"161" "seq1121" 2226
+"164" "seq1168" 2240
+"19" "Berula" 2745
+"25" "Campanula" 2823
+"136" "Pseudoscleropodium" 3153
+"26" "Capsella" 3155
+"18" "Bellis" 3421
+"116" "Nardus" 3460
+"2" "Agrimonia" 3537
+"32" "Chaerophyllum" 3657
+"119" "Ononis" 3719
+"111" "Milium" 3731
+"10" "Anthyllis" 4072
+"109" "Melampyrum" 4603
+"65" "Frangula" 4746
+"221" "Vicia" 5441
+"4" "Alliaria" 6214
+"207" "Solidago" 6877
+"141" "Rosaceae genus 1 (alchemilla/aphanes)" 7417
+"212" "Taxus" 7527
+"88" "Luzula" 7603
+"38" "Convolvulus" 8326
+"56" "Ericaceae genus 1" 8366
+"163" "seq1130" 8617
+"112" "Moehringia" 9281
+"125" "Pimpinella" 9915
+"41" "Crepis" 10513
+"11" "Arrhenatherum" 10545
+"110" "Melica" 10581
+"121" "Persicaria" 11000
+"82" "Juniperus" 11653
+"123" "Phleum" 11956
+"134" "Prunella" 12111
+"83" "Knautia" 12244
+"37" "Comarum" 12306
+"47" "Cyperaceae genus 3" 12875
+"142" "Rosaceae genus 7 (prunus/amelanchier)" 15325
+"79" "Hypnum" 15706
+"74" "Hieracium" 16527
+"36" "Cirsium" 18687
+"6" "Alopecurus" 20309
+"57" "Eriophorum" 23071
+"66" "Fraxinus" 25597
+"67" "Galium" 26863
+"78" "Hypericum" 28474
+"29" "Caryophyllaceae genus 2" 28488
+"130" "Poaceae genus 10" 30850
+"27" "Cardamine" 30876
+"8" "Anthoxanthum" 33982
+"81" "Juncus" 37325
+"90" "Lythrum" 37651
+"209" "Sorbus" 38193
+"211" "Taraxacum" 40462
+"45" "Cynosurus" 42383
+"85" "Lolium" 44036
+"214" "Tilia" 44248
+"9" "Anthriscus" 45587
+"52" "Draba" 45789
+"53" "Eleocharis" 46725
+"22" "Bromus" 46868
+"220" "Veronica" 50353
+"50" "Deschampsia" 54822
+"15" "Asteraceae genus 4" 61537
+"39" "Corylus" 61658
+"122" "Phalaris" 61977
+"49" "Dactylis" 64018
+"155" "Scorzoneroides" 68667
+"115" "Myrica" 76203
+"13" "Asteraceae genus 1" 85638
+"107" "Malus" 94870
+"129" "Poaceae genus 1 (agrostis/lachnagrostis/muhlenbergia/polypogon/alopecurus/calmagrostis)" 105149
+"210" "Stellaria" 107103
+"35" "Circaea" 109933
+"33" "Chamaenerion" 115735
+"75" "Holcus" 126298
+"131" "Polygonum" 132339
+"16" "Avenella" 138832
+"138" "Ranunculus" 203169
+"59" "Fagaceae genus 1" 212077
+"61" "Festuca" 271735
+"31" "Cerastium" 285637
+"5" "Alnus" 315184
+"69" "Geranium" 396136
+"55" "Epilobium" 416458
+"153" "Salix" 440707
+"63" "Filipendula" 545832
+"72" "Glyceria" 610085
+"219" "Vaccinium" 637663
+"87" "Lotus" 670759
+"48" "Cytisus" 778428
+"128" "Poa" 851896
+"70" "Geum" 921729
+"127" "Plantago" 1077028
+"80" "Hypochaeris" 1221371
+"135" "Prunus" 1372820
+"28" "Carex" 1393179
+"20" "Betula" 1602033
+"3" "Agrostis" 2509164
+"140" "Rosa" 2559693
+"215" "Trifolium" 2758906
+"24" "Calluna" 3216823
+"133" "Potentilla" 3849649
+"60" "Fagus" 4857981
+"146" "Rumex" 6896033
+"145" "Rubus" 24946689
+"137" "Quercus" 26888762

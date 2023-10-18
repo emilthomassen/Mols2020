@@ -1,0 +1,97 @@
+---
+title: "Extracting coordinates"
+author: Emil Ellegaard Thomassen
+output: github_document
+toc: True
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r Setup and loading packages}
+
+rm(list=ls())
+gc()
+
+library(exifr)
+library(dplyr)
+library(leaflet)
+library(ggplot2)
+library(sf)
+
+```
+
+First, set working directory to the folder containing the jpg files you want to extract
+
+
+```{r Load metadata file}
+
+
+coords<-read.table("COI/MetaBarFlow/output/Metadata_MOLS2020_invertebrates.txt",
+                        header=TRUE,row.names=1,na.strings="NA")
+
+
+coords<-na.omit(coords)
+```
+
+```{r Visualizing sample locations}
+
+coords$source<- as.factor(coords$source)
+coords$season<- as.factor(coords$season)
+coords$month<- as.factor(coords$month)
+coords$habitat<- as.factor(coords$habitat)
+
+plot(coords$lon, coords$lat, col=coords$habitat)
+
+
+```
+
+
+```{r Loading map and plotting points}
+
+dk_map<-st_read("../../Projects_files/RewildingDK2022/Project_folder_RWDK_2022/Data_files/Maps/Denmark_shapefile/DNK_adm0.shp") ######OBS: DOES NOT WORK FOR COLLABORATORS! For now, this is just to explore.
+
+denmark<-ggplot(dk_map) + geom_sf() + geom_point(data=coords, aes(x=lon, y=lat, color=habitat)) + coord_sf()
+denmark
+mols<- denmark + coord_sf(xlim=c(10.56,10.6), ylim=c(56.22,56.235))
+mols
+
+```
+
+```{r Mols map with sample locations}
+
+library(tmap)
+library(tmaptools)
+library(OpenStreetMap)
+
+coords_sf<-st_as_sf(coords, coords = c(11,10))
+
+tmap_mode("plot")
+
+OSM_mols<-read_osm(coords_sf, ext=1.1, type="osm-public-transport")
+
+
+Plot <- tm_shape(OSM_mols) + tm_rgb() + tm_scale_bar(position=c("left", "bottom"), size=1) + tm_compass(position=c("left", "top"), size=3)
+Plot <- Plot + tm_shape(coords_sf[which(coords_sf$habitat=="open"),]) + tm_sf(col="gold1", size=0.3)
+Plot <- Plot + tm_shape(coords_sf[which(coords_sf$habitat=="forest"),]) + tm_sf(col="darkgreen", size=0.5)
+Plot <- Plot + tm_basemap()
+Plot
+
+
+#Working map types for molslab
+types = c("osm","bing", "stamen-watercolor", "opencyclemap", "osm-transport", "osm-public-transport")
+
+
+
+
+
+```
+
+```{r DK map}
+
+OSM_dk <- read_osm("DK", type="bing")
+
+Plot <- tm_shape(OSM_dk) + tm_rgb() + tm_scale_bar(position=c("left", "bottom")) + tm_compass(position=c("left", "top"))
+Plot
+
+```
+
