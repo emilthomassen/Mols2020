@@ -1633,6 +1633,223 @@ write.table(perm.out, file="COI/Local_analysis/output/textfiles/permanova_output
 
 ```
 
+```{r NDMS plot - summer only}
+
+#Libraries
+library(vegan)
+library(dplyr)
+library(ggplot2)
+library(ggalt)
+library(ggpubr)
+#library(BiodiversityR)
+
+#Function for inverse normal transformation
+inormal <- function(x)
+{
+  qnorm((rank(x, na.last = "keep") - 0.5) / sum(!is.na(x)))
+}
+
+#This step plots CAP and NMDS plots of abundance and presence/absence data
+dataset <- readRDS("COI/Local_analysis/output/RDS_files/dataset_final_arthropods")
+
+par(mfrow=c(1,1))
+
+samples<-dataset@samples[,c("source", "habitat","month")]
+
+season_vec=c()
+for (i in 1:nrow(samples)) {
+  if (samples$month[i]=="January") {season_vec<-append(season_vec,"early")} 
+  else if (samples$month[i]=="February") {season_vec<-append(season_vec,"early")} 
+  else if (samples$month[i]=="March") {season_vec<-append(season_vec,"early")}
+  else if (samples$month[i]=="April") {season_vec<-append(season_vec,"early")}
+  else if (samples$month[i]=="May") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="June") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="July") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="August") {season_vec<-append(season_vec,"mid")}
+  else if (samples$month[i]=="September") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="October") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="November") {season_vec<-append(season_vec,"late")}
+  else if (samples$month[i]=="December") {season_vec<-append(season_vec,"late")}
+}
+samples<-cbind(samples, "season"=season_vec)
+
+group<-c()
+for (i in 1:nrow(samples)) {
+  if (samples$source[i]=="galloway" && samples$season[i]=="early" && samples$habitat[i]=="open") {group<-append(group,"Galloway - EarlyOpen")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="early" && samples$habitat[i]=="forest") {group<-append(group,"Galloway - EarlyForest")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="mid" && samples$habitat[i]=="open") {group<-append(group,"Galloway - MidOpen")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="mid" && samples$habitat[i]=="forest") {group<-append(group,"Galloway - MidForest")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="late" && samples$habitat[i]=="open") {group<-append(group,"Galloway - LateOpen")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="late" && samples$habitat[i]=="forest") {group<-append(group,"Galloway - LateForest")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="early" && samples$habitat[i]=="open") {group<-append(group,"Exmoor - EarlyOpen")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="early" && samples$habitat[i]=="forest") {group<-append(group,"Exmoor - EarlyForest")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="mid" && samples$habitat[i]=="open") {group<-append(group,"Exmoor - MidOpen")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="mid" && samples$habitat[i]=="forest") {group<-append(group,"Exmoor - MidForest")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="late" && samples$habitat[i]=="open") {group<-append(group,"Exmoor - LateOpen")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="late" && samples$habitat[i]=="forest") {group<-append(group,"Exmoor - LateForest")}
+}
+
+samples<-cbind(samples,group)
+
+
+group2<-c()
+for (i in 1:nrow(samples)) {
+  if (samples$source[i]=="galloway" && samples$habitat[i]=="open") {group2<-append(group2,"Galloway - Open")}
+  if (samples$source[i]=="galloway" && samples$habitat[i]=="forest") {group2<-append(group2,"Galloway - Forest")}
+  if (samples$source[i]=="exmoor" && samples$habitat[i]=="open") {group2<-append(group2,"Exmoor - Open")}
+  if (samples$source[i]=="exmoor" && samples$habitat[i]=="forest") {group2<-append(group2,"Exmoor - Forest")}
+}
+
+
+group3<-c()
+for (i in 1:nrow(samples)) {
+  if (samples$source[i]=="galloway" && samples$season[i]=="early") {group3<-append(group3,"Galloway - Early")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="mid") {group3<-append(group3,"Galloway - Mid")}
+  if (samples$source[i]=="galloway" && samples$season[i]=="late") {group3<-append(group3,"Galloway - Late")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="early") {group3<-append(group3,"Exmoor - Early")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="mid") {group3<-append(group3,"Exmoor - Mid")}
+  if (samples$source[i]=="exmoor" && samples$season[i]=="late") {group3<-append(group3,"Exmoor - Late")}
+}
+
+
+
+
+samples<-cbind(samples,group2,group3)
+
+reads<-dataset$reads
+
+# Extract summer only
+reads <- dataset@reads[which(dataset@samples$season=="summer"),]
+samples <- samples[which(dataset@samples$season=="summer"),]
+
+
+#Evaluate number of dimensions
+
+# mreads<-as.matrix(sqrt(reads))
+# #mreads<-as.matrix(reads) #With or without transformation?
+# nmds1D = metaMDS(mreads, distance = "bray", k=1)
+# nmds2D = metaMDS(mreads, distance = "bray", k=2)
+# nmds3D = metaMDS(mreads, distance = "bray", k=3)
+# nmds4D = metaMDS(mreads, distance = "bray", k=4)
+# nmds5D = metaMDS(mreads, distance = "bray", k=5)
+# nmds20D = metaMDS(mreads, distance = "bray", k=20)
+# 
+# dim<-data.frame("dim"=c(1,2,3,4,5,20),"stress"=c(nmds1D$stress,nmds2D$stress,nmds3D$stress,nmds4D$stress,nmds5D$stress,nmds20D$stress))
+# 
+# plot(dim$dim,dim$stress, main="Stress values in nMDS ordination with increasing numbers of dimensions", cex.main=0.8)
+# abline(h=0.20, col="red", lty=2)
+# 
+# par(mfrow=c(2,2))
+# stressplot(nmds1D, main="Stressplot K=1")
+# stressplot(nmds2D, main="Stressplot K=2")
+# stressplot(nmds3D, main="Stressplot K=3")
+# stressplot(nmds4D, main="Stressplot K=4")
+# stressplot(nmds5D, main="Stressplot K=5")
+# stressplot(nmds20D, main="Stressplot K=20")
+
+
+#From stress vs. dimension plot, and stressplots, it seems that 3 dimensions will be appropriate (non-metric fit R2~0.977, stress=0.1523)
+
+
+#Perform NMDS-plot of reads
+mreads<-as.matrix(sqrt(reads))
+#mreads<-as.matrix(reads) #With or without transformation?
+nmds = metaMDS(mreads, distance = "bray", k=3)
+nmds.scores = as.data.frame(vegan::scores(nmds)$sites)
+head(nmds.scores)
+
+nmds.scores$Sample = row.names(samples)
+nmds.scores$Source = samples$source
+nmds.scores$Habitat = samples$habitat
+nmds.scores$Month = samples$month
+nmds.scores$Season = samples$season
+nmds.scores$Group = samples$group
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Source=factor(Source, levels=c("galloway","exmoor","Cattle","Horses")))
+
+nmds.scores$Source[which(nmds.scores$Source=="galloway")]<-"Cattle"
+nmds.scores$Source[which(nmds.scores$Source=="exmoor")]<-"Horses"
+
+nmds.scores<-nmds.scores %>%
+  dplyr::mutate(Source=factor(Source, levels=c("Cattle","Horses")))
+
+
+gg1<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Source)) +
+  scale_color_manual(values=c("darkorange","darkred")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.2, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkorange","darkred")) +
+  #annotate("text", x=0, y=1.1, label="All samples - arthropods", cex=3) +
+  #annotate("text", x=0, y=0.9, label="(Squareroot - transformed read counts)", cex=3) +
+  annotate("text", x=0.6, y=0.8, label=paste0("3D stress: ",round(nmds$stress,4)), cex=3) +
+  coord_cartesian(xlim=c(-1.5,1.2),ylim=c(-1,0.9)) +
+  ggtitle("Summer samples only") +
+  theme_bw()
+
+plot(gg1)
+
+ggsave(file="COI/Local_analysis/output/plots/Summer_samples_nmds_for_presentation1.png", width = 8, height = 8, dpi=300)
+
+# Extract species scores
+
+nmds.species <- as.data.frame(vegan::scores(nmds)$species)
+
+rownames(nmds.species) <- dataset@motus$final.otu
+
+
+
+spec.envfit <- envfit(nmds, mreads, perm = 999)
+
+#Extract significant and most important genera to display
+
+
+spp.scrs <- as.data.frame(scores(spec.envfit, display = "vectors"))
+rownames(spp.scrs) <- dataset@motus$final.otu
+spp.scrs <- cbind(spp.scrs, Species = rownames(spp.scrs))
+
+
+spp.scrs2 <- spp.scrs[which(spec.envfit$vectors$pvals<0.05 & spec.envfit$vectors$r>0.15),]
+
+
+
+gg2<-ggplot(nmds.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 3, aes(colour = Source), alpha=0.2) +
+  scale_color_manual(values=c("darkorange","darkred")) +
+  geom_encircle(aes(fill = Source), s_shape = 1, expand = 0,
+                alpha = 0.02, color = "black", show.legend = FALSE) +
+  scale_fill_manual(values=c("darkorange","darkred")) +
+  #annotate("text", x=0, y=1.1, label="All samples - arthropods", cex=3) +
+  #annotate("text", x=0, y=0.9, label="(Squareroot - transformed read counts)", cex=3) +
+  annotate("text", x=0.6, y=0.8, label=paste0("3D stress: ",round(nmds$stress,4)), cex=3) +
+  
+  geom_segment(data = spp.scrs2,
+               aes(x = 0, xend = NMDS1, y = 0, yend = NMDS2),
+               arrow = arrow(length = unit(0.25, "cm")), colour = "black") +
+  geom_text(data = spp.scrs2, aes(x = NMDS1*1.5, y = NMDS2*1.5, label = Species),
+            size = 3, position = "jitter") +
+  
+  coord_cartesian(xlim=c(-1.5,1.2),ylim=c(-1,0.9)) +
+  ggtitle("Summer samples only") +
+  theme_bw()
+
+plot(gg2)
+
+ggsave(file="COI/Local_analysis/output/plots/Summer_samples_nmds_for_presentation2.png", width = 8, height = 8, dpi=300)
+
+h.pic <- readRDS(file="../RWEU_22_23/COI/SUMMER/CLUSTER1/output/RDS_files/h.pic")
+c.pic <- readRDS(file="../RWEU_22_23/COI/SUMMER/CLUSTER1/output/RDS_files/c.pic")
+
+ggpic <- ggplot(nmds.scores) +
+  add_phylopic(img=c.pic, x=1, y=1, height=0.05,col="darkorange", fill="darkorange") +
+  theme_bw() +
+  theme(axis.title = element_blank(), axis.text = element_blank(), axis.ticks = element_blank(), panel.grid = element_blank())
+
+ggpic
+
+```
+
 ```{r NMDS functional types (not used)}
 
 
