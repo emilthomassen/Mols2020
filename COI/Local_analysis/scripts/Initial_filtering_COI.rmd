@@ -616,6 +616,37 @@ par(mfrow=c(1,1))
 
 ```
 
+```{r investigate reads in controls}
+
+dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_after_extracting_sample_names")
+
+all_samples <- cbind(dataset@samples, rowSums(dataset@reads))
+colnames(all_samples)[ncol(all_samples)]<-"Nreads"
+
+all_samples$"Grouping" <- rep("Sample",each=nrow(all_samples))
+for (i in 1:nrow(all_samples)) {
+  if (all_samples$samples.DungSamples[i]==FALSE) {all_samples$Grouping[i]<-"CONTROL"}
+  #if (all_samples$name[i]=="CNE1") {all_samples$Grouping[i]<-"CNE1"}
+  #if (grepl("CNE30",rownames(all_samples)[i])) {all_samples$Grouping[i]<-"CNE30"}
+}
+
+
+
+gg2 <- ggplot(all_samples, aes(x=sample, y=Nreads, col=Grouping)) +
+  geom_point() +
+  #scale_color_manual(values=c("pink","red","darkred","lightblue")) +
+  scale_color_manual(values=c("darkred","lightblue")) +
+  ggtitle("MOLS2020 - COI") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+gg2
+
+
+
+```
+
+
 ```{r Check ntc contaminants}
 
 dataset<-readRDS("COI/Local_analysis/output/RDS_files/dataset_after_correcting_source")
