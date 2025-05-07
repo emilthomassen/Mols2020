@@ -510,6 +510,8 @@ Species_Richness<-ggplot(Richness_gal, aes(x=factor(month, level=level_order), y
 Species_Richness
 
 
+
+#For publication
 ggarrange(Species_Richness, labels = c("A"), ncol = 1, nrow = 1)
 ggsave("ITS/Local_analysis/output/plots/SpeciesRichnessBothOneFigGenera.pdf", width=10, height=6)
 
@@ -528,6 +530,35 @@ saveRDS(RichnessBoth, file="ITS/Local_analysis/output/RDS_files/RichnessBothGene
 #ggsave("Species_Richness_all_time.pdf",width=15,height=8.5)
 
 
+Species_Richness_PP<-ggplot(Richness_gal, aes(x=factor(month, level=level_order), y=Count, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  geom_point(stat="summary", fun=mean, colour="darkseagreen4", cex=3) +
+  geom_errorbar(stat="summary", aes(x=factor(month, level=level_order), ymin=Count-se_gal, ymax=Count+se_gal), width=0.5, colour="darkseagreen4", cex=1) +
+  geom_point(data=Richness_exm, stat="summary", fun=mean, colour="dodgerblue3", cex=3) +
+  geom_errorbar(data=Richness_exm, stat="summary", aes(x=factor(month, level=level_order), ymin=Count-se_exm, ymax=Count+se_exm), width=0.5, colour="dodgerblue3", cex=1) +
+  scale_y_continuous(breaks=c(0,5,10,15,20,25,30,35,40,45,50,55,60)) +
+  stat_summary(fun=mean, geom="line", colour="darkseagreen4", cex=1) +
+  stat_summary(data=Richness_exm, fun=mean, geom="line", colour="dodgerblue3", cex=1) +
+  #ggtitle("Diet richness (genera), both species") +
+  annotate("text", x=2.5, y=40, label="Early season", cex=3, fontface="bold") +
+  annotate("text", x=6.5, y=40, label ="Mid season", cex=3, fontface="bold") +
+  annotate("text", x=10.5, y=40, label="Late season", cex=3, fontface="bold") +
+  annotate("text", x=2.5, y=38.5, label="(***)", cex=3, fontface="bold") +
+  annotate("text", x=6.5, y=38.5, label="ns.", cex=3, fontface="bold") +
+  annotate("text", x=10.5, y=38.5, label="(***)", cex=3, fontface="bold") +
+  theme_bw() +
+  coord_cartesian(ylim=c(1,40)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(hjust = 0.5), axis.text.y = element_text(size = 12, face = "bold"),axis.text.x = element_text(size = 10, face = "bold"), axis.title = element_text(size = 12, face = "bold")) +
+  xlab("Month") +
+  ylab("Number of genera")
+
+Species_Richness_PP
+
+#For presentations
+ggarrange(Species_Richness_PP, ncol = 1, nrow = 1)
+ggsave("ITS/Local_analysis/output/plots/GR_diet_for_PP.pdf", width=10, height=6)
 
 
 #### STACKED BARPLOTS
