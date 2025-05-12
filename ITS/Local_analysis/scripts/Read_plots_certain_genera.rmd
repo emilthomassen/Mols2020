@@ -978,3 +978,307 @@ ggsave("ITS/Local_analysis/output/figures/genera_plots_plants3.png", width=8, he
 
 ```
 
+```{r Additional - for presentations}
+
+
+#Loading libraries
+library(tidyverse)
+library(ROBITools)
+library(ROBITaxonomy)
+library(ggpubr)
+library(dplyr)
+library(ggplot2)
+library(ggsci)
+library(RColorBrewer)
+library(png)
+library(patchwork)
+
+#Set level order for plotting
+level_order <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December") 
+
+#Load data
+df_raw <- readRDS("ITS/Local_analysis/output/RDS_files/df_for_plots_and_analysis_genera")
+dataset<-readRDS("ITS/Local_analysis/output/RDS_files/dataset_final")
+
+
+
+#Set genus to plot
+
+genus<-"Poa"
+
+df_agro<-df_raw[which(df_raw$genus==genus),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$id
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_agro<-merge(df_agro,meta, by.x="sample", by.y="Samples")
+
+Freq_agro<-Freq_agro[order(Freq_agro$month),]
+
+Agro_gal<-subset(Freq_agro, Freq_agro$source=="galloway")
+Agro_exm<-subset(Freq_agro, Freq_agro$source=="exmoor")
+
+genus_plot<-ggplot(Agro_exm, aes(x=factor(month, level=level_order), y=freq, group=1)) + 
+  geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 4.5, colour="darkgrey",linetype=2)+
+  geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity", col="dodgerblue3") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth(col="dodgerblue3", fill="#C6E5EC") +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=Agro_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_point(data=Agro_gal,stat="identity", col="darkseagreen4") +
+  #stat_summary(data=Agro_gal,fun=mean, geom="line",col="darkseagreen4",cex=1) +
+  geom_smooth(data=Agro_gal,col="darkseagreen4", fill="#BDE8C5") +
+  #####################################################################################
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  coord_cartesian(ylim=c(0, 0.1)) +
+  #scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  ggtitle(genus) +
+  annotate("text", x=2.5, y=0.095, label="Early season", cex=4) +
+  annotate("text", x=6.5, y=0.095, label ="Mid season", cex=4) +
+  annotate("text", x=10.5, y=0.095, label="Late season", cex=4) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=12, hjust = 0.5, face="bold.italic"),axis.text.x = element_text(vjust=0.5,angle = 75, face="bold"),axis.text.y = element_text(face = "bold"), axis.title = element_text(size = 12, face="bold")) +
+  xlab("Month") +
+  ylab("Proportion of reads")
+
+genus_plot
+
+
+
+```
+
+```{r From RWDK}
+
+
+#Loading libraries
+library(tidyverse)
+library(ROBITools)
+library(ROBITaxonomy)
+library(ggpubr)
+library(dplyr)
+library(ggplot2)
+library(ggsci)
+library(RColorBrewer)
+library(png)
+library(patchwork)
+
+#Set level order for plotting
+level_order <- c("february", "march", "april", "june", "august") 
+
+#Load data
+df_raw <- readRDS("../RWDK/ITS/output/RDS_files/RWDK_ITS_df_for_plots_and_analysis_genera")
+dataset<-readRDS("../RWDK/ITS/output/RDS_files/RWDK_ITS_dataset_final_with_type")
+
+
+
+#Set genus to plot
+
+genus<-"Cytisus"
+
+df_agro<-df_raw[which(df_raw$genus==genus),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$sample
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_agro<-merge(df_agro,meta, by.x="sample", by.y="Samples")
+
+#Freq_agro<-Freq_agro[order(Freq_agro$month),]
+
+Agro_gal<-subset(Freq_agro, Freq_agro$source.x=="cattle")
+Agro_exm<-subset(Freq_agro, Freq_agro$source.x=="horse")
+
+FR<-Freq_agro[which(Freq_agro$site=="ML"),]
+FR2<-Freq_agro[which(Freq_agro$site!="ML"),]
+
+genus_plot<-ggplot(Freq_agro, aes(x=factor(month.x, level=level_order), y=freq, col=source.x, group=source.x)) + 
+  #geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 3.5, colour="darkgrey",linetype=2)+
+  #geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth() +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=Agro_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  scale_color_manual(values=c("#6C8B68","#3175D0")) + 
+  coord_cartesian(ylim=c(0, 0.1)) +
+  #scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  annotate("text", x=2, y=0.1, label="Winter/Early spring", cex=4) +
+  annotate("text", x=4.5, y=0.1, label ="Summer", cex=4) +
+  ggtitle(genus) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=12, hjust = 0.5, face="bold.italic"),axis.text.x = element_text(vjust=0.5,angle = 75, face="bold"),axis.text.y = element_text(face = "bold"), axis.title = element_text(size = 12, face="bold")) +
+  xlab("Month") +
+  ylab("Proportion of reads")
+
+genus_plot
+
+
+
+```
+
+```{r Generating input df RWEU}
+
+dataset<-readRDS("../RWEU_22_23/ITS/Seasons_combined/output/RDS_files/ITS_full_dataset_final_all")
+
+#Aggregated by genera
+
+#Create temporary df with read counts in each sample from metabarcoding file
+df_tmp<-data.frame(dataset@reads)
+colnames(df_tmp)<-dataset@motus$genus_name
+
+
+#Aggregate on genera
+id<-colnames(df_tmp)
+df_tmp<-t(df_tmp)
+df_tmp<-as.data.frame(df_tmp)
+df_tmp<-cbind(id,df_tmp)
+
+df_tmp<-aggregate( . ~ id, data=df_tmp, sum)
+rownames(df_tmp)<-df_tmp$id
+df_tmp$id<-NULL
+df_tmp<-as.data.frame(t(df_tmp))
+
+df_tmp <- df_tmp %>% mutate(source=dataset@samples$source, site = dataset@samples$sitecode)
+
+#Create temporary df to build file with the columns (sample, species, count, totalreads, freq)
+df<-data.frame("sample"=c(), "genus"=c(),"count"=c(),"source"=c(),"site"=c())
+df<-rbind(df, c(1,1,1,1,1))
+colnames(df)<-c("sample", "genus", "count","source","site")
+
+
+#Add row to the dataframe for each sample/species combination
+for (i in 1:nrow(df_tmp)) {
+  print(i)
+  for (j in 1:(ncol(df_tmp)-2)) {df<-rbind(df, c(row.names(df_tmp)[i],colnames(df_tmp)[j],df_tmp[i,j],as.character(df_tmp[i,(ncol(df_tmp)-1)]),as.character(df_tmp[i,ncol(df_tmp)])))} 
+}
+
+#Subtract the first row (line 788) which was only used to keep correct format
+df<-df[-1,]
+
+#Change type of columns (sample=factor, count=numeric)
+df2<-data.frame("sample"=as.factor(df$sample), "genus"=df$genus, "count"=as.numeric(df$count), "source"=as.factor(df$source),"site"=as.factor(df$site))
+
+#Calculate total reads in each sample
+#Create df with unique sample names and totalreads vector
+totalreads1<-data.frame("sample"=as.factor(unique(df2$sample)))
+totalreads<-c()
+
+#Add value for total reads in each sample to the sample_count vector
+for (sample in unique(df2$sample)) {
+  x1<-which(df2$sample==sample)
+  x2<-sum(df2$count[x1[1]:x1[length(x1)]])
+  totalreads<-append(totalreads, rep(x2, each=length(x1))) #Each total count added as many times as each sample in represented in df2
+}
+
+#Add totalreads to df2
+df2<-cbind(df2,totalreads)
+
+
+#Calculate frequency of each species in the sample
+freq<-c()
+
+for (i in 1:nrow(df2)) {
+  x<-df2$count[i]/df2$totalreads[i]
+  freq<-append(freq,x)
+  
+  
+}
+
+
+#Add to df2
+df2<-cbind(df2, freq)
+
+
+#Save as RDS
+
+saveRDS(df2, file="../../Projects_files/RewildingEU2022/Data/RWEU_ITS_df_for_plots_and_analysis_genera_for_presentation_plots")
+
+
+
+```
+
+
+```{r From RWEU}
+
+
+#Loading libraries
+library(tidyverse)
+library(ROBITools)
+library(ROBITaxonomy)
+library(ggpubr)
+library(dplyr)
+library(ggplot2)
+library(ggsci)
+library(RColorBrewer)
+library(png)
+library(patchwork)
+
+#Set level order for plotting
+level_order <- c("february", "march", "april", "june", "august") 
+
+#Load data
+df_raw <- readRDS("../RWDK/ITS/output/RDS_files/RWDK_ITS_df_for_plots_and_analysis_genera")
+dataset<-readRDS("../RWDK/ITS/output/RDS_files/RWDK_ITS_dataset_final_with_type")
+
+
+
+#Set genus to plot
+
+genus<-"Cytisus"
+
+df_agro<-df_raw[which(df_raw$genus==genus),]
+
+
+source<-dataset@samples$source
+month<-dataset@samples$month
+Samples<-dataset@samples$sample
+zerovec<-rep(0,times=length(Samples))
+meta<-data.frame(Samples,zerovec,source,month)
+Freq_agro<-merge(df_agro,meta, by.x="sample", by.y="Samples")
+
+#Freq_agro<-Freq_agro[order(Freq_agro$month),]
+
+Agro_gal<-subset(Freq_agro, Freq_agro$source.x=="cattle")
+Agro_exm<-subset(Freq_agro, Freq_agro$source.x=="horse")
+
+FR<-Freq_agro[which(Freq_agro$site=="ML"),]
+FR2<-Freq_agro[which(Freq_agro$site!="ML"),]
+
+genus_plot<-ggplot(Freq_agro, aes(x=factor(month.x, level=level_order), y=freq, col=source.x, group=source.x)) + 
+  #geom_vline(xintercept="August",colour="white", linetype=2)+ #Only to keep right format
+  geom_vline(xintercept = 3.5, colour="darkgrey",linetype=2)+
+  #geom_vline(xintercept = 8.5, colour="darkgrey",linetype=2)+
+  #geom_point(stat="summary", fun=mean, col="dodgerblue3",cex=2) +
+  geom_point(stat="identity") +
+  #stat_summary(fun=mean, geom="line",col="dodgerblue3",cex=1) +
+  geom_smooth() +
+  #To plot both in one plot - include galloway ########################################
+  #geom_point(data=Agro_gal,stat="summary", fun=mean, col="darkseagreen4",cex=2) +
+  geom_hline(yintercept = 0, col="darkblue",lty="dashed") +
+  scale_color_manual(values=c("#6C8B68","#3175D0")) + 
+  coord_cartesian(ylim=c(0, 0.1)) +
+  #scale_y_continuous(breaks=c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)) +
+  annotate("text", x=2, y=0.1, label="Winter/Early spring", cex=4) +
+  annotate("text", x=4.5, y=0.1, label ="Summer", cex=4) +
+  ggtitle(genus) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(size=12, hjust = 0.5, face="bold.italic"),axis.text.x = element_text(vjust=0.5,angle = 75, face="bold"),axis.text.y = element_text(face = "bold"), axis.title = element_text(size = 12, face="bold")) +
+  xlab("Month") +
+  ylab("Proportion of reads")
+
+genus_plot
+
+
+
+```
